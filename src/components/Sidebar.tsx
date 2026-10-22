@@ -132,7 +132,7 @@ export function Sidebar() {
             共 {games.length} 个游戏
           </span>
           <span className="flex items-center gap-1 text-[10px]" style={{ color: "var(--text-dim)" }}>
-            <Gamepad2 size={10} /> v0.3.0
+            <Gamepad2 size={10} /> v0.4.0
           </span>
         </div>
       </div>

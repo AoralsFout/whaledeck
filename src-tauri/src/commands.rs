@@ -1,3 +1,4 @@
+use crate::cover;
 use crate::launcher;
 use crate::meta;
 use crate::models::{
@@ -562,4 +563,61 @@ pub async fn apply_meta(
     let snapshot = game.clone();
     state.store.save_games(&games)?;
     Ok(snapshot)
+}
+
+// ---------- 自动封面 ----------
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoverOutcome {
+    pub cover_file: String,
+    /// local = 本地扫描到的封面图；icon = 系统图标
+    pub kind: String,
+    pub detail: String,
+}
+
+#[tauri::command]
+pub fn auto_cover(state: State<'_, AppState>, game_id: String) -> Result<CoverOutcome, String> {
+    let game = find_game(&state, &game_id)?;
+    let dir = state.store.covers_dir();
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+    let (name, kind, detail) = if let Some(local) = cover::find_local_cover(&game.exe_path) {
+        let ext = local
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .unwrap_or_else(|| "png".into());
+        let name = format!("{game_id}.{ext}");
+        std::fs::copy(&local, dir.join(&name))
+            .map_err(|e| format!("复制本地封面失败：{e}"))?;
+        let detail = local
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        (name, "local".to_string(), detail)
+    } else {
+        let (png, width, height) = cover::icon_png(&game.exe_path)?;
+        let name = format!("{game_id}.png");
+        std::fs::write(dir.join(&name), png).map_err(|e| format!("保存图标失败：{e}"))?;
+        (name, "icon".to_string(), format!("{width}×{height} 图标"))
+    };
+
+    remove_old_assets(&dir, &format!("{game_id}."), Some(&name));
+
+    let mut games = state.games.lock().unwrap();
+    let target = games
+        .iter_mut()
+        .find(|g| g.id == game_id)
+        .ok_or_else(|| "游戏记录不存在".to_string())?;
+    target.cover_file = Some(name.clone());
+    let snapshot = target.clone();
+    state.store.save_games(&games)?;
+    let _ = snapshot;
+
+    Ok(CoverOutcome {
+        cover_file: name,
+        kind,
+        detail,
+    })
 }

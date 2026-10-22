@@ -1,4 +1,5 @@
 mod commands;
+mod cover;
 mod launcher;
 mod meta;
 mod models;
@@ -70,6 +71,7 @@ pub fn run() {
             commands::import_library,
             commands::search_meta,
             commands::apply_meta,
+            commands::auto_cover,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

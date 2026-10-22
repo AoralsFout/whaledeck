@@ -94,6 +94,12 @@ export type MetaItem = {
   rating: number | null;
 };
 
+export type CoverOutcome = {
+  coverFile: string;
+  kind: "local" | "icon";
+  detail: string;
+};
+
 export function newGameDraft(): Game {
   return {
     id: "",

@@ -1,6 +1,7 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
+  CoverOutcome,
   Game,
   LaunchResult,
   MetaItem,
@@ -48,6 +49,8 @@ export const api = {
     invoke<MetaItem[]>("search_meta", { source, keyword }),
   applyMeta: (gameId: string, item: MetaItem) =>
     invoke<Game>("apply_meta", { gameId, item }),
+  autoCover: (gameId: string) =>
+    invoke<CoverOutcome>("auto_cover", { gameId }),
 };
 
 export function fileUrl(absPath: string): string {

@@ -9,6 +9,7 @@ import {
   Play,
   RotateCcw,
   Save,
+  Sparkles,
   Star,
   Trash2,
   X,
@@ -61,6 +62,7 @@ export function GameDetail() {
   const openMeta = useLibrary((s) => s.openMeta);
   const launch = useLibrary((s) => s.launchGame);
   const toggleFavorite = useLibrary((s) => s.toggleFavorite);
+  const applyGame = useLibrary((s) => s.applyGame);
   const deleteGame = useLibrary((s) => s.deleteGame);
   const showToast = useLibrary((s) => s.showToast);
   const cover = useAssetUrl("cover", game?.coverFile ?? null);
@@ -71,6 +73,7 @@ export function GameDetail() {
   const [minutes, setMinutes] = useState("");
   const [backups, setBackups] = useState<SaveBackup[]>([]);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [coverBusy, setCoverBusy] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
 
   useEffect(() => {
@@ -129,6 +132,24 @@ export function GameDetail() {
       .writeText(game.exePath)
       .then(() => showToast("info", "已复制路径"))
       .catch(() => showToast("error", "复制失败"));
+  };
+
+  const applyAutoCover = async () => {
+    setCoverBusy(true);
+    try {
+      const outcome = await api.autoCover(game.id);
+      applyGame({ ...game, coverFile: outcome.coverFile });
+      showToast(
+        "success",
+        outcome.kind === "local"
+          ? `已使用本地封面：${outcome.detail}`
+          : "已提取系统图标作为封面（清晰度有限）",
+      );
+    } catch (err) {
+      showToast("error", String(err));
+    } finally {
+      setCoverBusy(false);
+    }
   };
 
   const doBackup = async () => {
@@ -226,6 +247,14 @@ export function GameDetail() {
             title="联网补全封面和信息"
           >
             <CloudDownload size={15} />
+          </button>
+          <button
+            className="btn !px-3 !py-2.5"
+            onClick={() => void applyAutoCover()}
+            disabled={coverBusy}
+            title="自动封面：先找游戏目录里的图片，找不到就提取图标"
+          >
+            <Sparkles size={15} />
           </button>
         </div>
 
