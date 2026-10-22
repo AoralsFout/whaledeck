@@ -81,6 +81,7 @@ pub fn run() {
             commands::pick_image,
             commands::scan_folder,
             commands::import_cover,
+            commands::import_icon,
             commands::import_background,
             commands::asset_path,
             commands::get_settings,

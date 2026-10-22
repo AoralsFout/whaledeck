@@ -1,5 +1,5 @@
 /**
- * @file 新增 / 编辑项目对话框：目标、封面、分类、标签、启动参数与存档目录。
+ * @file 新增 / 编辑项目对话框：目标、封面、图标、分类、标签、启动参数与存档目录。
  *
  * 草稿只存在于组件内；保存交给 useLibrary.saveGame，成功后才关闭。
  * 对应文档：docs/前端实现.md §3.2、docs/界面与交互.md §4.2。
@@ -33,8 +33,11 @@ export function GameForm() {
     (editing?.extraProcessNames ?? []).join(", "),
   );
   const [saving, setSaving] = useState(false);
+  const [pickingImage, setPickingImage] = useState<"cover" | "icon" | null>(null);
   const [errors, setErrors] = useState<{ title?: string; path?: string }>({});
   const coverUrl = useAssetUrl("cover", draft.coverFile);
+  const iconUrl = useAssetUrl("icon", draft.iconFile);
+  const busy = saving || pickingImage !== null;
 
   const patch = (part: Partial<Game>) => setDraft((d) => ({ ...d, ...part }));
   const suggestions = collectCategories(games, settings?.categories ?? []);
@@ -72,14 +75,21 @@ export function GameForm() {
     if (dir) patch({ workDir: dir });
   };
 
-  const pickCover = async () => {
-    const src = await api.pickImage("cover");
-    if (!src) return;
+  /** 导入结束前阻止保存和关闭，确保文件名进入本次草稿后才能提交。 */
+  const pickImage = async (kind: "cover" | "icon") => {
+    if (busy) return;
+    setPickingImage(kind);
     try {
-      const name = await api.importCover(draft.id, src);
-      patch({ coverFile: name });
+      const src = await api.pickImage(kind);
+      if (!src) return;
+      const name = kind === "icon"
+        ? await api.importIcon(draft.id, src)
+        : await api.importCover(draft.id, src);
+      patch(kind === "icon" ? { iconFile: name } : { coverFile: name });
     } catch (err) {
       showToast("error", String(err));
+    } finally {
+      setPickingImage(null);
     }
   };
 
@@ -103,6 +113,7 @@ export function GameForm() {
       .filter(Boolean);
 
   const save = async () => {
+    if (busy) return;
     const title = draft.title.trim();
     const exePath = draft.exePath.trim();
     const nextErrors = {
@@ -136,7 +147,7 @@ export function GameForm() {
   const processLike = isProcessTarget(draft.exePath);
 
   return (
-    <Modal title={isNew ? "加入新项目" : "编辑项目"} onClose={() => { if (!saving) closeForm(); }} width={680}>
+    <Modal title={isNew ? "加入新项目" : "编辑项目"} onClose={() => { if (!busy) closeForm(); }} width={680}>
       <div
         className="modal-header flex items-center justify-between border-b"
         style={{ borderColor: "var(--border)" }}
@@ -144,7 +155,7 @@ export function GameForm() {
         <h2 className="modal-title m-0 font-semibold">
           {isNew ? "加入新项目" : "编辑项目"}
         </h2>
-        <button className="btn btn-ghost !p-1" onClick={closeForm} disabled={saving} aria-label="关闭">
+        <button className="btn btn-ghost !p-1" onClick={closeForm} disabled={busy} aria-label="关闭">
           <X size={16} />
         </button>
       </div>
@@ -165,17 +176,46 @@ export function GameForm() {
           </div>
           <div className="form-cover-info">
             <div className="flex flex-wrap gap-2">
-              <button className="btn" onClick={() => void pickCover()}>
+              <button className="btn" onClick={() => void pickImage("cover")} disabled={busy}>
                 <ImagePlus size={14} />
-                选择封面
+                {pickingImage === "cover" ? "导入中…" : "选择封面"}
               </button>
               {draft.coverFile && (
-                <button className="btn btn-ghost" onClick={() => patch({ coverFile: null })}>
+                <button className="btn btn-ghost" onClick={() => patch({ coverFile: null })} disabled={busy} aria-label="移除封面">
                   移除
                 </button>
               )}
             </div>
             <p className="hint m-0">封面会复制进数据目录，原图移动了也不影响。</p>
+          </div>
+        </div>
+
+        <div className="form-icon flex flex-wrap items-center gap-4" aria-busy={pickingImage === "icon"}>
+          <div
+            className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border"
+            style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
+          >
+            {iconUrl ? (
+              <img src={iconUrl} alt="图标预览" className="h-full w-full object-contain p-2" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center">
+                <ImagePlus size={20} aria-hidden="true" style={{ color: "var(--text-dim)" }} />
+              </div>
+            )}
+          </div>
+          <div className="form-cover-info">
+            <div className="flex flex-wrap gap-2">
+              <button className="btn" onClick={() => void pickImage("icon")} disabled={busy}>
+                <ImagePlus size={14} aria-hidden="true" />
+                {pickingImage === "icon" ? "导入中…" : "选择图标"}
+              </button>
+              {draft.iconFile && (
+                <button className="btn btn-ghost" onClick={() => patch({ iconFile: null })} disabled={busy}>
+                  移除图标
+                </button>
+              )}
+            </div>
+            <p className="hint m-0">图标用于侧栏列表，会复制进数据目录。建议选择方形图片，支持 ICO。</p>
           </div>
         </div>
 
@@ -383,10 +423,10 @@ export function GameForm() {
         className="modal-footer flex justify-end gap-3 border-t"
         style={{ borderColor: "var(--border)" }}
       >
-        <button className="btn" onClick={closeForm} disabled={saving}>
+        <button className="btn" onClick={closeForm} disabled={busy}>
           取消
         </button>
-        <button className="btn btn-primary" onClick={() => void save()} disabled={saving}>
+        <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>
           {saving ? "保存中…" : isNew ? "加入" : "保存"}
         </button>
       </div>

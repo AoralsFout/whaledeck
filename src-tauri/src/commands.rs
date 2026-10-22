@@ -286,17 +286,22 @@ pub fn pick_folder(app: AppHandle) -> Option<String> {
         .map(|p| p.to_string_lossy().to_string())
 }
 
+/// 按用途设置对话框标题与格式过滤，取消时不修改任何资源。
 #[tauri::command]
 pub fn pick_image(app: AppHandle, kind: String) -> Option<String> {
-    let title = if kind == "background" {
-        "选择背景图片"
-    } else {
-        "选择封面图片"
+    let title = match kind.as_str() {
+        "background" => "选择背景图片",
+        "icon" => "选择图标图片",
+        _ => "选择封面图片",
     };
+    let mut extensions = vec!["png", "jpg", "jpeg", "webp", "gif", "bmp"];
+    if kind == "icon" {
+        extensions.push("ico");
+    }
     app.dialog()
         .file()
         .set_title(title)
-        .add_filter("图片", &["png", "jpg", "jpeg", "webp", "gif", "bmp"])
+        .add_filter("图片", &extensions)
         .blocking_pick_file()
         .and_then(|p| p.into_path().ok())
         .map(|p| p.to_string_lossy().to_string())
@@ -375,6 +380,12 @@ pub fn import_cover(state: State<'_, AppState>, id: String, src: String) -> Resu
     std::fs::copy(&src, dir.join(&name)).map_err(|e| format!("复制封面失败：{e}"))?;
     remove_old_assets(&dir, &format!("{id}."), Some(&name));
     Ok(name)
+}
+
+/// 仅导入草稿资源；由 save_game 统一持久化图标引用。
+#[tauri::command]
+pub fn import_icon(state: State<'_, AppState>, id: String, src: String) -> Result<String, String> {
+    state.store.import_icon(&id, Path::new(&src))
 }
 
 /// 复制背景图并立即把文件名写回设置，保证重启后仍生效。
