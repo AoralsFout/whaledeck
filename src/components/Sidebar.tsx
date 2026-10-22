@@ -7,7 +7,8 @@
 import { ArrowDownWideNarrow, ArrowLeft, FolderSearch, Plus, Search, Settings, Star, X } from "lucide-react";
 import { formatPlaytime, formatRelative } from "../lib/format";
 import { collectCategories } from "../lib/library";
-import { useAssetUrl } from "../lib/useAssetUrl";
+import { Brand } from "./Brand";
+import { GameIcon } from "./GameIcon";
 import { useLibrary } from "../store/useLibrary";
 import { useLibraryView } from "../store/useLibraryView";
 import type { Game, NavKey, SortKey } from "../types";
@@ -19,11 +20,8 @@ const SORTS: { value: SortKey; label: string }[] = [
   { value: "added", label: "添加时间" },
 ];
 
-/** 列表缩略图：优先程序图标，其次封面，都没有时用首字母渐变占位。 */
+/** 列表缩略图：项目图标缺失或损坏时，由 GameIcon 显示应用图标。 */
 function Thumb({ game }: { game: Game }) {
-  const icon = useAssetUrl("icon", game.iconFile);
-  const cover = useAssetUrl("cover", game.coverFile);
-  const src = icon ?? cover;
   return (
     <div
       className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
@@ -31,18 +29,7 @@ function Thumb({ game }: { game: Game }) {
         background: "linear-gradient(135deg, rgba(var(--primary-rgb), .25), rgba(var(--accent-rgb), .18))",
       }}
     >
-      {src ? (
-        <img
-          src={src}
-          alt=""
-          className={icon ? "h-full w-full object-contain p-0.5" : "h-full w-full object-cover"}
-          draggable={false}
-        />
-      ) : (
-        <span className="text-[13px] font-semibold" style={{ color: "rgba(var(--primary-rgb), .9)" }}>
-          {(game.title || "?").charAt(0).toUpperCase()}
-        </span>
-      )}
+      <GameIcon file={game.iconFile} className="h-full w-full object-contain p-0.5" />
     </div>
   );
 }
@@ -92,22 +79,7 @@ export function Sidebar({ onNavigate }: { onNavigate: () => void }) {
       }}
     >
       <div className="sidebar-brand flex items-center gap-2.5 px-4 pb-4 pt-4" data-tauri-drag-region>
-        <div
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-base"
-          data-tauri-drag-region
-          style={{
-            background: "linear-gradient(135deg, rgba(var(--primary-rgb), .22), rgba(var(--accent-rgb), .18))",
-            border: "1px solid rgba(var(--primary-rgb), .3)",
-          }}
-        >
-          🐋
-        </div>
-        <div className="min-w-0 leading-tight" data-tauri-drag-region>
-          <p className="m-0 text-[14px] font-semibold tracking-wide" data-tauri-drag-region>WhaleDeck</p>
-          <p className="m-0 mt-0.5 text-[11px]" style={{ color: "var(--text-dim)" }} data-tauri-drag-region>
-            鲸鱼游戏台
-          </p>
-        </div>
+        <Brand />
         <button
           className="btn btn-ghost ml-auto !p-1"
           onClick={openSettings}

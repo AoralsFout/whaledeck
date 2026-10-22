@@ -4,6 +4,7 @@
  * 对应文档：docs/界面与交互.md §5、docs/前端实现.md §3。
  */
 import { Plus } from "lucide-react";
+import { APP_ICON_URL } from "../lib/brand";
 
 /** filtered 为真表示「有库但筛选无结果」，此时主按钮是清除筛选。 */
 export function EmptyState({ onAdd, filtered = false, onReset }: { onAdd: () => void; filtered?: boolean; onReset?: () => void }) {
@@ -14,7 +15,7 @@ export function EmptyState({ onAdd, filtered = false, onReset }: { onAdd: () => 
           className="absolute -inset-8 rounded-full opacity-40 blur-2xl"
           style={{ background: "radial-gradient(circle, rgba(var(--primary-rgb), .5), transparent 70%)" }}
         />
-        <div className="relative text-7xl">🐋</div>
+        <img src={APP_ICON_URL} width={112} height={112} alt="" className="relative" draggable={false} />
       </div>
       <div className="text-center">
         <h1 className="m-0 text-lg font-semibold">{filtered ? "没有匹配的项目" : "游戏库还是空的"}</h1>

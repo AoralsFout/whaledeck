@@ -9,6 +9,7 @@ import { Menu } from "lucide-react";
 import { onGameStopped, onLaunchFailed, onSettingsChanged } from "./lib/ipc";
 import { applyTheme } from "./lib/theme";
 import { useAssetUrl } from "./lib/useAssetUrl";
+import { APP_ICON_URL } from "./lib/brand";
 import { showWindowWhenReady } from "./lib/startup";
 import { useLibrary } from "./store/useLibrary";
 import { useLibraryView } from "./store/useLibraryView";
@@ -92,7 +93,7 @@ export default function App() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
         <WindowChrome />
-        <div className="text-5xl">🐋</div>
+        <img src={APP_ICON_URL} width={64} height={64} alt="" draggable={false} />
         <p className="m-0 text-sm" style={{ color: "var(--text-dim)" }}>
           正在打开游戏库…
         </p>

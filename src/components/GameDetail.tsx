@@ -36,6 +36,7 @@ import { useLibrary } from "../store/useLibrary";
 import { createSaveBackups } from "../store/saveBackups";
 import { isProcessTarget, type Game } from "../types";
 import { ActionTooltips } from "./ActionTooltips";
+import { GameIcon } from "./GameIcon";
 
 const PANEL_BG = "rgba(10, 16, 30, 0.38)";
 const PANEL_STYLE = {
@@ -85,7 +86,6 @@ export function GameDetail({ game }: { game: Game }) {
   const deleteGame = useLibrary((s) => s.deleteGame);
   const showToast = useLibrary((s) => s.showToast);
   const cover = useAssetUrl("cover", game?.coverFile ?? null);
-  const icon = useAssetUrl("icon", game?.iconFile ?? null);
 
   const [elapsed, setElapsed] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -197,19 +197,16 @@ export function GameDetail({ game }: { game: Game }) {
         <div className="detail-content flex min-h-full flex-col justify-end pb-12 pt-20">
           {/* 标题 + 图标 */}
           <div className="flex items-center gap-3">
-            {icon && (
-              <img
-                src={icon}
-                alt=""
-                className="h-11 w-11 shrink-0 rounded-xl object-contain p-1"
-                style={{
-                  background: "rgba(8,13,26,.45)",
-                  border: "1px solid rgba(255,255,255,.14)",
-                  backdropFilter: "blur(8px)",
-                }}
-                draggable={false}
-              />
-            )}
+            <GameIcon
+              file={game.iconFile}
+              size={44}
+              className="h-11 w-11 shrink-0 rounded-xl object-contain p-1"
+              style={{
+                background: "rgba(8,13,26,.45)",
+                border: "1px solid rgba(255,255,255,.14)",
+                backdropFilter: "blur(8px)",
+              }}
+            />
             <div className="min-w-0">
               <h1
                 className="game-title m-0 text-3xl font-semibold text-white"

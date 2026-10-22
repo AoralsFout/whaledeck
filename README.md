@@ -1,10 +1,10 @@
-# WhaleDeck 🐋
+# <img src="src-tauri/icons/128x128.png" width="64" height="64" alt="" /> WhaleDeck
 
 > 本地游戏 / 项目启动台 —— 把散落各处的东西收进一个界面，一触即达，记录时长。
 
 WhaleDeck 是一个 Windows 桌面应用（Tauri 2 + React 19 + TypeScript）：核心功能不依赖网络，数据只存本机，不上传、不碰你的文件和存档（手动备份除外）；只有主动使用的「联网补全」会访问公开接口获取数据。
 
-![WhaleDeck 界面](docs/screenshot.png)
+![WhaleDeck 界面（示例数据）](docs/screenshot.png)
 
 ## 功能
 
@@ -18,6 +18,7 @@ WhaleDeck 是一个 Windows 桌面应用（Tauri 2 + React 19 + TypeScript）：
 - **联网补全**：按名称从 Bangumi / VNDB / 月幕 搜索条目，一键应用封面、简介、开发商、发售日期；搜不到可手动选封面。
 - **自动补全**：读取程序版本信息补名称/开发商/备注，提取系统图标，并优先使用游戏目录里的本地封面。
 - **图像分层**：横版封面用于主区背景，程序图标用于侧栏缩略图，互不冒充。
+  - 未设置项目图标或图片无法加载时，自动使用 WhaleDeck 应用图标。
 - **存档备份**：给每个游戏配置一到多个存档目录，一键打包成 zip；存档坏了可以还原回去。
 - **可靠存储**：数据存本机 JSON，原子写入 + 保留 5 份备份，损坏自动回退。
 - **界面**：沉浸式封面详情、固定底部操作/统计栏、无边框圆角窗口；4 套预设主题，可自定义主色、强调色、背景图与遮罩。
@@ -38,6 +39,7 @@ pnpm install          # 安装前端依赖
 pnpm tauri dev        # 开发模式（Vite + Tauri 热更新）
 pnpm build            # 只构建前端（含类型检查）
 pnpm test             # 前端测试（Vitest）
+pnpm icons            # 用 Tauri 官方工具从正式 PNG 批量生成图标包
 cd src-tauri && cargo test   # Rust 测试
 pnpm tauri build      # 打包安装程序（NSIS）
 ```

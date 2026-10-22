@@ -13,6 +13,7 @@ import { useAssetUrl } from "../lib/useAssetUrl";
 import { useLibrary } from "../store/useLibrary";
 import { isProcessTarget, newGameDraft, type Game } from "../types";
 import { Modal } from "./Modal";
+import { GameIcon } from "./GameIcon";
 
 /** 编辑/新增表单；新记录在打开时就生成 id，便于立即按 id 保存封面。 */
 export function GameForm() {
@@ -36,7 +37,6 @@ export function GameForm() {
   const [pickingImage, setPickingImage] = useState<"cover" | "icon" | null>(null);
   const [errors, setErrors] = useState<{ title?: string; path?: string }>({});
   const coverUrl = useAssetUrl("cover", draft.coverFile);
-  const iconUrl = useAssetUrl("icon", draft.iconFile);
   const busy = saving || pickingImage !== null;
 
   const patch = (part: Partial<Game>) => setDraft((d) => ({ ...d, ...part }));
@@ -195,13 +195,7 @@ export function GameForm() {
             className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border"
             style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
           >
-            {iconUrl ? (
-              <img src={iconUrl} alt="图标预览" className="h-full w-full object-contain p-2" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center">
-                <ImagePlus size={20} aria-hidden="true" style={{ color: "var(--text-dim)" }} />
-              </div>
-            )}
+            <GameIcon file={draft.iconFile} size={80} alt="图标预览" className="h-full w-full object-contain p-2" />
           </div>
           <div className="form-cover-info">
             <div className="flex flex-wrap gap-2">
@@ -215,7 +209,7 @@ export function GameForm() {
                 </button>
               )}
             </div>
-            <p className="hint m-0">图标用于侧栏列表，会复制进数据目录。建议选择方形图片，支持 ICO。</p>
+            <p className="hint m-0">图标用于侧栏列表，未选择时使用应用图标。自选图标会复制进数据目录，支持方形图片和 ICO。</p>
           </div>
         </div>
 
