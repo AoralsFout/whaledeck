@@ -14,7 +14,10 @@
   --accent-rgb: 255, 158, 199;
   --bg-dim: 0.55;
   --bg-image: none;
-  color-scheme: dark;
+  --window-radius: 12px;
+  --app-color-scheme: dark;
+  /* 根画布保持默认配色，避免 WebView 为透明区域填充深色底。 */
+  color-scheme: normal;
 }
 
 :root[data-mode="light"] {
@@ -25,7 +28,7 @@
   --border: #d8e2f4;
   --text: #12203a;
   --text-dim: #5b6f8f;
-  color-scheme: light;
+  --app-color-scheme: light;
 }
 
 html,
@@ -34,17 +37,106 @@ body,
   height: 100%;
 }
 
+html,
+body {
+  background: transparent;
+}
+
+:root[data-window-expanded="true"] {
+  --window-radius: 0px;
+}
+
 body {
   margin: 0;
   font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, sans-serif;
-  background: var(--bg);
   color: var(--text);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   user-select: none;
 }
 
-body::before {
+#root {
+  position: relative;
+  /* 背景只画在应用容器内，避免 body 背景传播到整个页面画布。 */
+  background: var(--bg);
+  color-scheme: var(--app-color-scheme);
+  border-radius: var(--window-radius);
+  /* 同时裁剪背景、固定定位的弹窗与浮层，露出真正透明的窗口四角。 */
+  clip-path: inset(0 round var(--window-radius));
+  isolation: isolate;
+}
+
+.window-drag-region {
+  position: fixed;
+  top: 0;
+  left: 258px;
+  right: 156px;
+  height: 52px;
+  z-index: 30;
+}
+
+.window-controls {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 60;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
+}
+
+.window-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.window-control:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.window-control:active {
+  background: color-mix(in srgb, var(--primary) 20%, var(--surface-2));
+}
+
+.window-control:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.window-control-close:hover,
+.window-control-close:active {
+  background: #c42b3c;
+  color: #fff;
+}
+
+.window-control:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .window-control {
+    transition: none;
+  }
+}
+
+#root::before {
   content: "";
   position: fixed;
   inset: 0;
@@ -56,7 +148,7 @@ body::before {
   pointer-events: none;
 }
 
-body::after {
+#root::after {
   content: "";
   position: fixed;
   inset: 0;
