@@ -5,6 +5,7 @@
 mod commands;
 mod cover;
 mod launcher;
+mod lifecycle;
 mod meta;
 mod models;
 mod program;
@@ -43,6 +44,7 @@ fn init_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         games: std::sync::Mutex::new(games),
         settings: std::sync::Mutex::new(settings),
         sessions: std::sync::Mutex::new(Vec::new()),
+        lifecycle: std::sync::Mutex::new(lifecycle::Lifecycle::default()),
     });
     Ok(())
 }
@@ -53,9 +55,21 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             init_app(app)?;
+            lifecycle::setup_tray(app)?;
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    lifecycle::request_close(window.app_handle(), false);
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
+            lifecycle::get_close_request,
+            lifecycle::resolve_close_request,
+            lifecycle::set_close_behavior,
             commands::list_games,
             commands::save_game,
             commands::delete_game,

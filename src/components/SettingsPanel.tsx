@@ -1,5 +1,5 @@
 /**
- * @file 设置对话框：外观、分类、数据与关于四个标签页。
+ * @file 设置对话框：常规、外观、分类、数据与关于标签页。
  *
  * 设置项即时生效并自动保存；导出/导入是覆盖操作，导入前需二次确认。
  * 对应文档：docs/界面与交互.md §4.3、docs/前端实现.md §3。
@@ -13,6 +13,7 @@ import {
   Info,
   Moon,
   Palette,
+  Settings2,
   Sun,
   Trash2,
   Upload,
@@ -25,6 +26,7 @@ import type { Theme, ThemePreset } from "../types";
 import { Modal } from "./Modal";
 
 const TABS = [
+  { id: "general", label: "常规", icon: Settings2 },
   { id: "appearance", label: "外观", icon: Palette },
   { id: "categories", label: "分类", icon: Database },
   { id: "data", label: "数据", icon: Download },
@@ -49,13 +51,14 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
 export function SettingsPanel() {
   const settings = useLibrary((s) => s.settings);
   const updateSettings = useLibrary((s) => s.updateSettings);
+  const setCloseBehavior = useLibrary((s) => s.setCloseBehavior);
   const closeSettings = useLibrary((s) => s.closeSettings);
   const showToast = useLibrary((s) => s.showToast);
   const games = useLibrary((s) => s.games);
   const [newCat, setNewCat] = useState("");
   const [importArmed, setImportArmed] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<SettingsTab>("appearance");
+  const [tab, setTab] = useState<SettingsTab>("general");
   const contentRef = useRef<HTMLDivElement>(null);
 
   const selectTab = (next: SettingsTab) => {
@@ -190,6 +193,33 @@ export function SettingsPanel() {
           tabIndex={0}
           className="settings-page animate-fade-in"
         >
+          {tab === "general" && (
+            <Section title="关闭行为" icon={<Settings2 size={16} aria-hidden="true" />}>
+              <p className="hint m-0">选择点击窗口关闭按钮时的行为。{settings.closeBehavior === null ? "当前：首次关闭时询问。" : "修改后自动保存。"}</p>
+              <div className="grid gap-3" role="group" aria-label="关闭行为">
+                {([
+                  { value: "hide", label: "后台隐藏", description: "隐藏到程序托盘，继续追踪和记录运行时长。" },
+                  { value: "exit", label: "直接关闭", description: "退出 WhaleDeck；有程序正在运行时，会再次确认。" },
+                ] as const).map((option) => (
+                  <button
+                    key={option.value}
+                    className="close-behavior-option"
+                    aria-pressed={settings.closeBehavior === option.value}
+                    disabled={busy}
+                    onClick={async () => {
+                      setBusy(true);
+                      try { await setCloseBehavior(option.value); }
+                      finally { setBusy(false); }
+                    }}
+                  >
+                    <span className="font-medium">{option.label}</span>
+                    <span className="hint">{option.description}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="hint m-0">后台隐藏后，点击托盘图标可恢复窗口；右键菜单可退出 WhaleDeck。</p>
+            </Section>
+          )}
           {tab === "appearance" && (
             <>
               <Section title="主题配色" icon={<Palette size={16} aria-hidden="true" />}>

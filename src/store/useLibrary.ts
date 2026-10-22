@@ -10,6 +10,7 @@ import { api } from "../lib/ipc";
 import { filterGames, gamePathKey } from "../lib/library";
 import { dirFromPath, titleFromPath } from "../lib/format";
 import type {
+  CloseBehavior,
   Game,
   NavKey,
   Settings,
@@ -61,6 +62,7 @@ type LibraryState = {
   launchGame: (id: string) => Promise<void>;
   toggleFavorite: (id: string) => Promise<void>;
   updateSettings: (next: Settings) => Promise<void>;
+  setCloseBehavior: (behavior: CloseBehavior) => Promise<void>;
   openSettings: () => void;
   closeSettings: () => void;
   openScan: () => void;
@@ -287,6 +289,16 @@ export const useLibrary = create<LibraryState>((set, get) => {
         await api.saveSettings(next);
       } catch (err) {
         get().showToast("error", `保存设置失败：${String(err)}`);
+      }
+    },
+
+    /** 关闭偏好先落盘再展示，写失败时保留用户原选择。 */
+    setCloseBehavior: async (behavior) => {
+      try {
+        const settings = await api.setCloseBehavior(behavior);
+        set({ settings, sort: settings.sort });
+      } catch (err) {
+        get().showToast("error", `保存关闭行为失败：${String(err)}`);
       }
     },
 

@@ -8,6 +8,9 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   AutofillResult,
+  CloseAction,
+  CloseBehavior,
+  CloseRequest,
   Game,
   LaunchResult,
   MetaItem,
@@ -43,6 +46,9 @@ export const api = {
   getSettings: () => invoke<Settings>("get_settings"),
   saveSettings: (settings: Settings) =>
     invoke<Settings>("save_settings", { settings }),
+  setCloseBehavior: (behavior: CloseBehavior) => invoke<Settings>("set_close_behavior", { behavior }),
+  getCloseRequest: () => invoke<CloseRequest | null>("get_close_request"),
+  resolveCloseRequest: (action: CloseAction) => invoke<CloseRequest | null>("resolve_close_request", { action }),
   openDataDir: () => invoke<void>("open_data_dir"),
   backupSaves: (id: string) => invoke<SaveBackup>("backup_saves", { id }),
   listSaveBackups: (id: string) =>
@@ -65,6 +71,16 @@ export function fileUrl(absPath: string): string {
 
 export function onGameStopped(cb: (p: StoppedPayload) => void) {
   return listen<StoppedPayload>("game-stopped", (e) => cb(e.payload));
+}
+
+/** 关闭事件可能先于组件就绪；订阅者还需读取请求快照。 */
+export function onCloseRequested(cb: (p: CloseRequest | null) => void) {
+  return listen<CloseRequest | null>("close-requested", (e) => cb(e.payload));
+}
+
+/** 后端首次关闭选择成功持久化后同步设置镜像。 */
+export function onSettingsChanged(cb: (settings: Settings) => void) {
+  return listen<Settings>("settings-changed", (e) => cb(e.payload));
 }
 
 export function onLaunchFailed(cb: (p: { gameId: string; message: string }) => void) {

@@ -6,7 +6,7 @@
  */
 import { useEffect, useLayoutEffect, useState } from "react";
 import { Menu } from "lucide-react";
-import { onGameStopped, onLaunchFailed } from "./lib/ipc";
+import { onGameStopped, onLaunchFailed, onSettingsChanged } from "./lib/ipc";
 import { applyTheme } from "./lib/theme";
 import { useAssetUrl } from "./lib/useAssetUrl";
 import { showWindowWhenReady } from "./lib/startup";
@@ -21,6 +21,7 @@ import { MetaDialog } from "./components/MetaDialog";
 import { EmptyState } from "./components/EmptyState";
 import { Toast } from "./components/Toast";
 import { WindowChrome } from "./components/WindowChrome";
+import { CloseDialog } from "./components/CloseDialog";
 
 /**
  * 应用根组件：加载库 → 派生选中项 → 应用主题 → 首帧后显示窗口。
@@ -51,6 +52,7 @@ export default function App() {
     const subs = [
       onGameStopped((p) => useLibrary.getState().handleStopped(p)),
       onLaunchFailed((p) => useLibrary.getState().handleLaunchFailed(p.message)),
+      onSettingsChanged((settings) => useLibrary.setState({ settings, sort: settings.sort })),
     ];
     return () => {
       subs.forEach((p) => {
@@ -95,6 +97,7 @@ export default function App() {
           正在打开游戏库…
         </p>
         <Toast />
+        <CloseDialog />
       </div>
     );
   }
@@ -118,6 +121,7 @@ export default function App() {
       {scanOpen && <ScanDialog />}
       {metaOpen && <MetaDialog />}
       <Toast />
+      <CloseDialog />
     </div>
   );
 }

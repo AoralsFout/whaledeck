@@ -49,6 +49,15 @@ export type Settings = {
   theme: Theme;
   sort: SortKey;
   categories: string[];
+  closeBehavior: CloseBehavior | null;
+};
+
+export type CloseBehavior = "exit" | "hide";
+export type CloseAction = CloseBehavior | "cancel" | "confirmExit";
+export type CloseRequest = {
+  kind: "choose" | "confirmExit" | "error";
+  runningCount: number;
+  message: string;
 };
 
 export type Session = {

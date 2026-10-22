@@ -4,6 +4,7 @@
 //! 对应文档：docs/接口契约.md（签名）、docs/后端实现.md（实现与限制）。
 use crate::cover;
 use crate::launcher;
+use crate::lifecycle::Lifecycle;
 use crate::meta;
 use crate::models::{
     now_ms, Game, LaunchResult, MetaItem, SaveBackup, ScanEntry, Session, Settings, StoppedPayload,
@@ -16,12 +17,13 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
-/// 应用共享状态：游戏库、设置与运行会话各自加锁，磁盘写入统一走 `store`。
+/// 应用共享状态：数据各自加锁；生命周期锁协调启动、关闭与结算，写盘统一走 `store`。
 pub struct AppState {
     pub store: Store,
     pub games: Mutex<Vec<Game>>,
     pub settings: Mutex<Settings>,
     pub sessions: Mutex<Vec<Session>>,
+    pub lifecycle: Mutex<Lifecycle>,
 }
 
 const SCAN_MAX_DEPTH: u32 = 6;
@@ -129,6 +131,11 @@ pub fn launch_game(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<LaunchResult, String> {
+    // 与关闭检查互斥；确认期间不允许加入尚未获用户确认的新会话。
+    let lifecycle = state.lifecycle.lock().unwrap();
+    if lifecycle.pending.is_some() || lifecycle.exiting {
+        return Err("正在确认关闭，请先取消关闭再启动程序".into());
+    }
     let game = find_game(&state, &id)?;
     {
         let sessions = state.sessions.lock().unwrap();
@@ -198,6 +205,17 @@ fn monitor_process(app: AppHandle, session: Session, game: Game) {
         }
 
         let state = app.state::<AppState>();
+        // 采样后会话可能已由退出流程结算，必须在生命周期锁内再次检查。
+        let _lifecycle = state.lifecycle.lock().unwrap();
+        if !state
+            .sessions
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|s| s.game_id == session.game_id && s.pid == session.pid)
+        {
+            return;
+        }
         let session_sec = now_ms().saturating_sub(session.started_at) / 1000;
         let playtime_sec = {
             let mut games = state.games.lock().unwrap();
@@ -394,8 +412,9 @@ pub fn get_settings(state: State<'_, AppState>) -> Settings {
 
 #[tauri::command]
 pub fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<Settings, String> {
+    let mut current = state.settings.lock().unwrap();
     state.store.save_settings(&settings)?;
-    *state.settings.lock().unwrap() = settings.clone();
+    *current = settings.clone();
     Ok(settings)
 }
 
@@ -727,6 +746,7 @@ mod game_write_tests {
             games: Mutex::new(games),
             settings: Mutex::new(Settings::default()),
             sessions: Mutex::new(vec![]),
+            lifecycle: Mutex::new(Lifecycle::default()),
         }
     }
 
