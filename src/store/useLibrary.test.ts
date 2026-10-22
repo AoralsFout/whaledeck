@@ -25,6 +25,20 @@ describe("游戏写入", () => {
     vi.resetAllMocks();
   });
 
+  it("打开自动补全与取消均不改库，普通编辑与新增清除自动获取标记", () => {
+    const game = { ...newGameDraft(), id: "a", title: "原名" };
+    useLibrary.setState({ games: [game] });
+    useLibrary.getState().openEdit(game, true);
+    expect(useLibrary.getState()).toMatchObject({ editing: game, formAutofill: true, formOpen: true, games: [game] });
+    useLibrary.getState().closeForm();
+    expect(useLibrary.getState()).toMatchObject({ formOpen: false, formAutofill: false, games: [game] });
+    useLibrary.getState().openEdit(game);
+    expect(useLibrary.getState().formAutofill).toBe(false);
+    useLibrary.getState().openNew();
+    expect(useLibrary.getState().formAutofill).toBe(false);
+    expect(api.saveGame).not.toHaveBeenCalled();
+  });
+
   it("关闭行为只在保存成功后更新，失败时保留原选择", async () => {
     const settings: Settings = {
       theme: { preset: "whale", mode: "dark", primary: "#4fd6e8", accent: "#ff9ec7", backgroundFile: null, backgroundDim: .55 },

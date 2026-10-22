@@ -111,6 +111,8 @@ export type MetaItem = {
   rating: number | null;
 };
 
+export type AutofillField = "title" | "developer" | "note" | "iconFile" | "coverFile";
+
 export type AutofillResult = {
   game: Game;
   icon: boolean;

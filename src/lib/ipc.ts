@@ -8,6 +8,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   AutofillResult,
+  AutofillField,
   CloseAction,
   CloseBehavior,
   CloseRequest,
@@ -64,7 +65,8 @@ export const api = {
     invoke<MetaItem[]>("search_meta", { source, keyword }),
   applyMeta: (gameId: string, item: MetaItem) =>
     invoke<Game>("apply_meta", { gameId, item }),
-  autofill: (gameId: string) => invoke<AutofillResult>("autofill", { gameId }),
+  autofill: (game: Game, field?: AutofillField) =>
+    invoke<AutofillResult>("autofill", { game, field: field ?? null }),
 };
 
 export function fileUrl(absPath: string): string {
