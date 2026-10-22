@@ -9,6 +9,8 @@ type Props = {
 
 export function Modal({ children, onClose, width = 560, title }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const backdropPointer = useRef<number | null>(null);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -45,11 +47,29 @@ export function Modal({ children, onClose, width = 560, title }: Props) {
           first.focus();
         }
       }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+      onPointerDown={(e) => {
+        backdropPointer.current = e.isPrimary && e.button === 0 && e.target === e.currentTarget
+          ? e.pointerId
+          : null;
+      }}
+      onPointerUp={(e) => {
+        const startedOutside = backdropPointer.current === e.pointerId;
+        backdropPointer.current = null;
+        if (!startedOutside || e.button !== 0) return;
+        const panel = panelRef.current?.getBoundingClientRect();
+        if (!panel) return;
+        // Touch can implicitly capture the pointer: use the release coordinates,
+        // since its event target can still be the backdrop after moving inside.
+        const endedOutside = e.clientX < panel.left || e.clientX > panel.right
+          || e.clientY < panel.top || e.clientY > panel.bottom;
+        if (endedOutside) onClose();
+      }}
+      onPointerCancel={() => {
+        backdropPointer.current = null;
       }}
     >
       <div
+        ref={panelRef}
         className="modal-panel glass animate-pop-in relative w-full overflow-hidden rounded-2xl shadow-2xl"
         style={{ maxWidth: width }}
       >

@@ -131,19 +131,19 @@ export function GameForm() {
   return (
     <Modal title={isNew ? "加入新项目" : "编辑项目"} onClose={() => { if (!saving) closeForm(); }} width={680}>
       <div
-        className="flex items-center justify-between border-b px-5 py-3.5"
+        className="modal-header flex items-center justify-between border-b"
         style={{ borderColor: "var(--border)" }}
       >
-        <h3 className="m-0 text-[15px] font-semibold">
+        <h2 className="modal-title m-0 font-semibold">
           {isNew ? "加入新项目" : "编辑项目"}
-        </h3>
+        </h2>
         <button className="btn btn-ghost !p-1" onClick={closeForm} disabled={saving} aria-label="关闭">
           <X size={16} />
         </button>
       </div>
 
-      <div className="max-h-[68vh] space-y-4 overflow-y-auto px-5 py-4">
-        <div className="form-cover flex flex-wrap items-center gap-3">
+      <div className="modal-body form-body">
+        <div className="form-cover flex flex-wrap items-center gap-4">
           <div
             className="h-20 w-32 shrink-0 overflow-hidden rounded-xl border"
             style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
@@ -156,8 +156,8 @@ export function GameForm() {
               </div>
             )}
           </div>
-          <div className="space-y-1.5">
-            <div className="flex gap-2">
+          <div className="form-cover-info">
+            <div className="flex flex-wrap gap-2">
               <button className="btn" onClick={() => void pickCover()}>
                 <ImagePlus size={14} />
                 选择封面
@@ -197,7 +197,7 @@ export function GameForm() {
                 required
                 aria-invalid={Boolean(errors.path)}
                 aria-describedby={errors.path ? "game-path-error" : "game-path-hint"}
-                className="input font-mono !text-[11px]"
+                className="input font-mono"
                 value={draft.exePath}
                 onChange={(e) => patch({ exePath: e.target.value })}
                 placeholder="C:\Games\xxx\xxx.exe 或 C:\Docs\笔记.pdf 或某个文件夹"
@@ -226,7 +226,7 @@ export function GameForm() {
             <div className="flex gap-2">
               <input
                 id="game-workdir"
-                className="input font-mono !text-[11px]"
+                className="input font-mono"
                 value={draft.workDir}
                 onChange={(e) => patch({ workDir: e.target.value })}
                 placeholder="留空则使用程序所在目录"
@@ -271,7 +271,7 @@ export function GameForm() {
             <label className="label" htmlFor="game-args">启动参数</label>
             <input
               id="game-args"
-              className="input font-mono !text-[11px]"
+              className="input font-mono"
               value={draft.args}
               onChange={(e) => patch({ args: e.target.value })}
               placeholder="可选，例如 -windowed -dx11"
@@ -300,12 +300,12 @@ export function GameForm() {
                 存档目录（可多个，用于备份）
               </span>
             </label>
-            <div className="space-y-1.5">
+            <div className="form-save-paths">
               {draft.savePaths.map((path, index) => (
                 <div className="flex gap-2" key={index}>
                   <input
                     aria-label={`存档目录 ${index + 1}`}
-                    className="input font-mono !text-[11px]"
+                    className="input font-mono"
                     value={path}
                     onChange={(e) =>
                       setDraft((d) => ({
@@ -347,8 +347,8 @@ export function GameForm() {
             />
           </div>
 
-          <div className="col-span-2 flex items-center gap-5 pt-1">
-            <label className="flex cursor-pointer items-center gap-2 text-[12px]">
+          <div className="form-flags col-span-2 flex flex-wrap items-center gap-4 pt-1">
+            <label className="flex cursor-pointer items-center gap-2 text-[13px]">
               <input
                 type="checkbox"
                 className="accent-[var(--primary)]"
@@ -358,7 +358,7 @@ export function GameForm() {
               <Star size={13} style={{ color: draft.favorite ? "#ffd166" : "var(--text-dim)" }} />
               加入收藏
             </label>
-            <label className="flex cursor-pointer items-center gap-2 text-[12px]">
+            <label className="flex cursor-pointer items-center gap-2 text-[13px]">
               <input
                 type="checkbox"
                 className="accent-[var(--primary)]"
@@ -373,7 +373,7 @@ export function GameForm() {
       </div>
 
       <div
-        className="flex justify-end gap-2 border-t px-5 py-3.5"
+        className="modal-footer flex justify-end gap-3 border-t"
         style={{ borderColor: "var(--border)" }}
       >
         <button className="btn" onClick={closeForm} disabled={saving}>

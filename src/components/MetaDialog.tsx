@@ -79,42 +79,44 @@ export function MetaDialog() {
   return (
     <Modal title="联网补全信息" onClose={close} width={700}>
       <div
-        className="flex items-center justify-between border-b px-5 py-3.5"
+        className="modal-header flex items-center justify-between border-b"
         style={{ borderColor: "var(--border)" }}
       >
-        <h3 className="m-0 flex items-center gap-2 text-[15px] font-semibold">
+        <h2 className="modal-title m-0 flex items-center gap-2 font-semibold">
           <CloudDownload size={16} />
           联网补全信息
-        </h3>
+        </h2>
         <button className="btn btn-ghost !p-1" onClick={close} aria-label="关闭">
           <X size={16} />
         </button>
       </div>
 
-      <div className="space-y-3 px-5 py-4">
-        <div className="flex gap-1.5">
-          {SOURCES.map((s) => (
-            <button
-              key={s.key}
-              aria-pressed={source === s.key}
-              className="btn flex-1 !py-2"
-              onClick={() => setSource(s.key)}
-              title={s.blurb}
-              style={
-                source === s.key
-                  ? {
-                      borderColor: "rgba(var(--primary-rgb), .6)",
-                      color: "var(--primary-ink)",
-                      background: "rgba(var(--primary-rgb), .1)",
-                    }
-                  : undefined
-              }
-            >
-              {s.label}
-            </button>
-          ))}
+      <div className="modal-body meta-body">
+        <div className="meta-source">
+          <div className="flex gap-3">
+            {SOURCES.map((s) => (
+              <button
+                key={s.key}
+                aria-pressed={source === s.key}
+                className="btn flex-1 !py-2"
+                onClick={() => setSource(s.key)}
+                title={s.blurb}
+                style={
+                  source === s.key
+                    ? {
+                        borderColor: "rgba(var(--primary-rgb), .6)",
+                        color: "var(--primary-ink)",
+                        background: "rgba(var(--primary-rgb), .1)",
+                      }
+                    : undefined
+                }
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <p className="hint m-0">{SOURCES.find((s) => s.key === source)?.blurb}</p>
         </div>
-        <p className="hint m-0">{SOURCES.find((s) => s.key === source)?.blurb}</p>
 
         <div className="flex gap-2">
           <input
@@ -134,15 +136,15 @@ export function MetaDialog() {
           </button>
         </div>
 
-        <div className="max-h-[46vh] space-y-2 overflow-y-auto">
+        <div className="meta-results">
           {loading && (
-            <p className="py-8 text-center text-[12px]" style={{ color: "var(--text-dim)" }}>
+            <p className="m-0 py-8 text-center text-[14px]" style={{ color: "var(--text-dim)" }}>
               正在从 {sourceName(source)} 搜索…
             </p>
           )}
           {!loading && searched && items.length === 0 && (
-            <div className="space-y-3 py-6 text-center">
-              <p className="m-0 text-[12px]" style={{ color: "var(--text-dim)" }}>
+            <div className="meta-empty py-6 text-center">
+              <p className="m-0 text-[14px] leading-relaxed" style={{ color: "var(--text-dim)" }}>
                 没找到结果。可以换原名 / 中文名再试，或直接手动选一张封面。
               </p>
               <button className="btn" onClick={() => void manualPick()}>
@@ -157,7 +159,7 @@ export function MetaDialog() {
               return (
                 <div
                   key={key}
-                  className="flex gap-3 rounded-xl p-2.5"
+                  className="flex gap-4 rounded-xl p-4"
                   style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
                 >
                   <div
@@ -178,20 +180,20 @@ export function MetaDialog() {
                     ) : null}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="m-0 truncate text-[13px] font-medium">{item.title}</p>
+                    <p className="m-0 break-words text-[14px] font-medium">{item.title}</p>
                     {item.subtitle && (
-                      <p className="m-0 truncate text-[11px]" style={{ color: "var(--text-dim)" }}>
+                      <p className="m-0 mt-1 break-words text-[12px]" style={{ color: "var(--text-dim)" }}>
                         {item.subtitle}
                       </p>
                     )}
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]" style={{ color: "var(--text-dim)" }}>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px]" style={{ color: "var(--text-dim)" }}>
                       <span className="chip">{sourceName(item.source)}</span>
                       {item.releaseDate && <span>{item.releaseDate}</span>}
                       {item.developer && <span className="truncate">{item.developer}</span>}
                       {item.rating != null && <span>评分 {item.rating}</span>}
                     </div>
                     <button
-                      className="btn btn-primary mt-1.5 !px-3 !py-1 text-[11px]"
+                      className="btn btn-primary mt-3"
                       onClick={() => void apply(item)}
                       disabled={applying !== null}
                     >
@@ -205,7 +207,7 @@ export function MetaDialog() {
       </div>
 
       <div
-        className="flex items-center justify-between border-t px-5 py-3"
+        className="modal-footer flex items-center justify-between border-t"
         style={{ borderColor: "var(--border)" }}
       >
         <span className="hint">

@@ -94,33 +94,33 @@ export function ScanDialog() {
   return (
     <Modal title="扫描文件夹" onClose={() => { if (!saving) close(); }} width={720}>
       <div
-        className="flex items-center justify-between border-b px-5 py-3.5"
+        className="modal-header flex items-center justify-between border-b"
         style={{ borderColor: "var(--border)" }}
       >
-        <h3 className="m-0 flex items-center gap-2 text-[15px] font-semibold">
+        <h2 className="modal-title m-0 flex items-center gap-2 font-semibold">
           <FolderSearch size={16} />
           扫描文件夹
-        </h3>
-        <button className="btn btn-ghost !p-1" onClick={close} aria-label="关闭">
+        </h2>
+        <button className="btn btn-ghost !p-1" onClick={close} disabled={saving} aria-label="关闭">
           <X size={16} />
         </button>
       </div>
 
-      <div className="max-h-[64vh] space-y-3 overflow-y-auto px-5 py-4">
-        <div className="flex items-center gap-2">
+      <div className="modal-body scan-body">
+        <div className="scan-folder flex flex-wrap items-center gap-3">
           <button className="btn btn-primary" onClick={() => void pickFolder()} disabled={scanning}>
             <FolderSearch size={14} />
             选择要扫描的文件夹
           </button>
           {folder && (
-            <span className="truncate font-mono text-[11px]" title={folder} style={{ color: "var(--text-dim)" }}>
+            <span className="min-w-0 break-words font-mono text-[12px] [overflow-wrap:anywhere]" title={folder} style={{ color: "var(--text-dim)" }}>
               {folder}
             </span>
           )}
         </div>
 
         {scanning && (
-          <div className="flex items-center gap-2 py-6 text-[12px]" style={{ color: "var(--text-dim)" }}>
+          <div className="flex items-center gap-3 py-6 text-[14px]" style={{ color: "var(--text-dim)" }}>
             <Loader2 size={14} className="animate-spin" />
             正在扫描（最多 6 层目录）…
           </div>
@@ -128,17 +128,17 @@ export function ScanDialog() {
 
         {!scanning && entries.length > 0 && (
           <>
-            <div className="flex items-center justify-between">
-              <span className="text-[12px]" style={{ color: "var(--text-dim)" }}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="text-[13px]" style={{ color: "var(--text-dim)" }}>
                 找到 {entries.length} 个 exe，其中 {fresh.length} 个还没加入
               </span>
-              <button className="btn btn-ghost !px-2 !py-1 text-[11px]" onClick={selectAll}>
+              <button className="btn btn-ghost" onClick={selectAll}>
                 全选 / 反选
               </button>
             </div>
 
             <div
-              className="max-h-[42vh] overflow-y-auto rounded-xl"
+              className="scan-results rounded-xl"
               style={{ border: "1px solid var(--border)" }}
             >
               {entries.map((entry) => {
@@ -147,7 +147,7 @@ export function ScanDialog() {
                 return (
                   <label
                     key={entry.path}
-                    className="flex cursor-pointer items-center gap-3 border-b px-3 py-2 last:border-b-0"
+                    className="flex cursor-pointer items-center gap-3 border-b p-4 last:border-b-0"
                     style={{ borderColor: "var(--border)", opacity: added ? 0.45 : 1 }}
                   >
                     <input
@@ -163,12 +163,12 @@ export function ScanDialog() {
                       <Square size={13} style={{ color: "var(--text-dim)" }} />
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="m-0 truncate text-[12px]">{entry.name}</p>
-                      <p className="m-0 truncate text-[10px]" title={entry.path} style={{ color: "var(--text-dim)" }}>
+                      <p className="m-0 truncate text-[14px]">{entry.name}</p>
+                      <p className="m-0 mt-1 truncate text-[12px]" title={entry.path} style={{ color: "var(--text-dim)" }}>
                         {entry.path}
                       </p>
                     </div>
-                    <span className="shrink-0 text-[10px]" style={{ color: "var(--text-dim)" }}>
+                    <span className="shrink-0 text-[12px]" style={{ color: "var(--text-dim)" }}>
                       {added ? "已在库中" : formatBytes(entry.size)}
                     </span>
                   </label>
@@ -179,20 +179,20 @@ export function ScanDialog() {
         )}
 
         {!scanning && entries.length === 0 && (
-          <p className="py-6 text-center text-[12px]" style={{ color: "var(--text-dim)" }}>
+          <p className="m-0 py-6 text-center text-[14px] leading-relaxed" style={{ color: "var(--text-dim)" }}>
             选一个装了游戏或工具的文件夹，我会递归找出里面的 exe，勾选后批量加入。
           </p>
         )}
       </div>
 
       <div
-        className="flex items-center justify-between border-t px-5 py-3.5"
+        className="modal-footer flex items-center justify-between border-t"
         style={{ borderColor: "var(--border)" }}
       >
-        <span className="text-[11px]" style={{ color: "var(--text-dim)" }}>
+        <span className="text-[13px]" style={{ color: "var(--text-dim)" }}>
           已选 {selected.size} 个
         </span>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-3">
           <button className="btn" onClick={close} disabled={saving}>
             取消
           </button>

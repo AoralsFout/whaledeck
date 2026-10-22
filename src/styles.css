@@ -528,12 +528,35 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 }
 .modal[open] { display: flex; align-items: center; justify-content: center; }
 .modal::backdrop { background: rgb(0 0 0 / 55%); backdrop-filter: blur(3px); }
-.modal-panel { display: flex; flex-direction: column; max-height: 100%; }
+.modal-panel { --modal-gutter: 28px; display: flex; flex-direction: column; max-height: 100%; }
 .modal-panel > div { flex-shrink: 0; }
 .modal-panel > div:nth-child(2) { flex-shrink: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .modal-panel > div:first-child .btn[aria-label="关闭"] { min-width: 32px; min-height: 32px; }
 .modal-panel > div:last-child { flex-wrap: wrap; gap: 12px; }
-.modal-panel .input.font-mono { font-size: 12px !important; }
+.modal-panel .input.font-mono { font-size: 13px !important; }
+.modal-panel > .modal-header { gap: 16px; padding: 24px var(--modal-gutter) 20px; }
+.modal-title { font-size: 17px; line-height: 1.4; }
+.modal-panel > .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 28px var(--modal-gutter) 32px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.modal-body .label { margin-bottom: 8px; font-size: 13px; }
+.modal-body .hint { margin-bottom: 0; line-height: 1.6; }
+.modal-body .form-fields { gap: 24px 20px; }
+.form-cover-info { display: flex; flex: 1; min-width: 180px; flex-direction: column; gap: 12px; }
+.form-save-paths { display: grid; gap: 12px; }
+.form-save-paths > .btn { justify-self: start; }
+.meta-source { display: grid; gap: 12px; }
+.meta-source .btn { min-width: 0; }
+.meta-results { display: flex; flex-direction: column; gap: 12px; }
+.meta-results:empty { display: none; }
+.meta-empty { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.modal-panel > .modal-footer { gap: 12px; padding: 18px var(--modal-gutter); }
+.modal-footer > .hint { flex: 1; min-width: 0; }
 .toast-position { max-width: calc(100vw - 32px); }
 
 /* Settings keep navigation fixed while each page has its own reading space. */
@@ -619,7 +642,11 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
   .detail-actions .btn { min-height: 44px; }
   .detail-stats { padding-block: 8px; }
   .modal { padding: 64px 12px 12px; }
+  .modal-panel { --modal-gutter: 20px; }
   .modal-panel > div { padding-inline: 16px; }
+  .modal-panel > .modal-header { padding-block: 20px 16px; }
+  .modal-panel > .modal-body { gap: 24px; padding-block: 24px; }
+  .modal-panel > .modal-footer { padding-block: 16px; }
   .modal-panel > .settings-header { padding: 20px 20px 16px; }
   .modal-panel > .settings-body { padding: 24px 20px; }
   .modal-panel > .settings-footer { padding: 16px 20px; }
