@@ -2,14 +2,16 @@ import { useMemo, useState } from "react";
 import { CheckSquare, FolderSearch, Loader2, Square, X } from "lucide-react";
 import { formatBytes } from "../lib/format";
 import { api } from "../lib/ipc";
+import { gamePathKey } from "../lib/library";
 import { useLibrary } from "../store/useLibrary";
-import { newGameDraft, type ScanEntry } from "../types";
+import type { ScanEntry } from "../types";
 import { Modal } from "./Modal";
 
 export function ScanDialog() {
   const close = useLibrary((s) => s.closeScan);
   const games = useLibrary((s) => s.games);
   const showToast = useLibrary((s) => s.showToast);
+  const addScannedGames = useLibrary((s) => s.addScannedGames);
 
   const [folder, setFolder] = useState("");
   const [entries, setEntries] = useState<ScanEntry[]>([]);
@@ -18,10 +20,11 @@ export function ScanDialog() {
   const [saving, setSaving] = useState(false);
 
   const existing = useMemo(
-    () => new Set(games.map((g) => g.exePath.toLowerCase())),
+    () => new Set(games.map((g) => gamePathKey(g.exePath))),
     [games],
   );
-  const fresh = entries.filter((e) => !existing.has(e.path.toLowerCase()));
+  const fresh = entries.filter((e) => !existing.has(gamePathKey(e.path)));
+  const selectedCount = fresh.filter((entry) => selected.has(entry.path)).length;
 
   const runScan = async (dir: string) => {
     setScanning(true);
@@ -31,7 +34,7 @@ export function ScanDialog() {
       setSelected(
         new Set(
           list
-            .filter((e) => !existing.has(e.path.toLowerCase()))
+            .filter((e) => !existing.has(gamePathKey(e.path)))
             .map((e) => e.path),
         ),
       );
@@ -69,58 +72,49 @@ export function ScanDialog() {
   };
 
   const addSelected = async () => {
-    const chosen = entries.filter((e) => selected.has(e.path));
+    if (saving || scanning) return;
+    const chosen = fresh.filter((e) => selected.has(e.path));
     if (chosen.length === 0) return;
     setSaving(true);
     try {
-      for (const entry of chosen) {
-        const draft = newGameDraft();
-        draft.id = crypto.randomUUID();
-        draft.title = entry.name.replace(/\.exe$/i, "");
-        draft.exePath = entry.path;
-        draft.workDir = entry.path.replace(/[\\/][^\\/]+$/, "");
-        await api.saveGame(draft);
-      }
-      await useLibrary.getState().init();
-      showToast("success", `已加入 ${chosen.length} 个游戏`);
-      close();
-    } catch (err) {
-      showToast("error", String(err));
+      const result = await addScannedGames(chosen);
+      setSelected(new Set(result.remaining.map((entry) => entry.path)));
+      if (!result.error) close();
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Modal onClose={close} width={720}>
+    <Modal title="扫描文件夹" onClose={() => { if (!saving) close(); }} width={720}>
       <div
-        className="flex items-center justify-between border-b px-5 py-3.5"
+        className="modal-header flex items-center justify-between border-b"
         style={{ borderColor: "var(--border)" }}
       >
-        <h3 className="m-0 flex items-center gap-2 text-[15px] font-semibold">
+        <h2 className="modal-title m-0 flex items-center gap-2 font-semibold">
           <FolderSearch size={16} />
           扫描文件夹
-        </h3>
-        <button className="btn btn-ghost !p-1" onClick={close} aria-label="关闭">
+        </h2>
+        <button className="btn btn-ghost !p-1" onClick={close} disabled={saving} aria-label="关闭">
           <X size={16} />
         </button>
       </div>
 
-      <div className="max-h-[64vh] space-y-3 overflow-y-auto px-5 py-4">
-        <div className="flex items-center gap-2">
-          <button className="btn btn-primary" onClick={() => void pickFolder()} disabled={scanning}>
+      <div className="modal-body scan-body">
+        <div className="scan-folder flex flex-wrap items-center gap-3">
+          <button className="btn btn-primary" onClick={() => void pickFolder()} disabled={scanning || saving}>
             <FolderSearch size={14} />
             选择要扫描的文件夹
           </button>
           {folder && (
-            <span className="truncate font-mono text-[11px]" title={folder} style={{ color: "var(--text-dim)" }}>
+            <span className="min-w-0 break-words font-mono text-[12px] [overflow-wrap:anywhere]" title={folder} style={{ color: "var(--text-dim)" }}>
               {folder}
             </span>
           )}
         </div>
 
         {scanning && (
-          <div className="flex items-center gap-2 py-6 text-[12px]" style={{ color: "var(--text-dim)" }}>
+          <div className="flex items-center gap-3 py-6 text-[14px]" style={{ color: "var(--text-dim)" }}>
             <Loader2 size={14} className="animate-spin" />
             正在扫描（最多 6 层目录）…
           </div>
@@ -128,33 +122,33 @@ export function ScanDialog() {
 
         {!scanning && entries.length > 0 && (
           <>
-            <div className="flex items-center justify-between">
-              <span className="text-[12px]" style={{ color: "var(--text-dim)" }}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="text-[13px]" style={{ color: "var(--text-dim)" }}>
                 找到 {entries.length} 个 exe，其中 {fresh.length} 个还没加入
               </span>
-              <button className="btn btn-ghost !px-2 !py-1 text-[11px]" onClick={selectAll}>
+              <button className="btn btn-ghost" onClick={selectAll} disabled={saving}>
                 全选 / 反选
               </button>
             </div>
 
             <div
-              className="max-h-[42vh] overflow-y-auto rounded-xl"
+              className="scan-results rounded-xl"
               style={{ border: "1px solid var(--border)" }}
             >
               {entries.map((entry) => {
-                const added = existing.has(entry.path.toLowerCase());
-                const checked = selected.has(entry.path);
+                const added = existing.has(gamePathKey(entry.path));
+                const checked = !added && selected.has(entry.path);
                 return (
                   <label
                     key={entry.path}
-                    className="flex cursor-pointer items-center gap-3 border-b px-3 py-2 last:border-b-0"
+                    className="flex cursor-pointer items-center gap-3 border-b p-4 last:border-b-0"
                     style={{ borderColor: "var(--border)", opacity: added ? 0.45 : 1 }}
                   >
                     <input
                       type="checkbox"
                       className="accent-[var(--primary)]"
                       checked={checked}
-                      disabled={added}
+                      disabled={added || saving}
                       onChange={() => toggle(entry.path)}
                     />
                     {checked ? (
@@ -163,12 +157,12 @@ export function ScanDialog() {
                       <Square size={13} style={{ color: "var(--text-dim)" }} />
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="m-0 truncate text-[12px]">{entry.name}</p>
-                      <p className="m-0 truncate text-[10px]" title={entry.path} style={{ color: "var(--text-dim)" }}>
+                      <p className="m-0 truncate text-[14px]">{entry.name}</p>
+                      <p className="m-0 mt-1 truncate text-[12px]" title={entry.path} style={{ color: "var(--text-dim)" }}>
                         {entry.path}
                       </p>
                     </div>
-                    <span className="shrink-0 text-[10px]" style={{ color: "var(--text-dim)" }}>
+                    <span className="shrink-0 text-[12px]" style={{ color: "var(--text-dim)" }}>
                       {added ? "已在库中" : formatBytes(entry.size)}
                     </span>
                   </label>
@@ -179,29 +173,29 @@ export function ScanDialog() {
         )}
 
         {!scanning && entries.length === 0 && (
-          <p className="py-6 text-center text-[12px]" style={{ color: "var(--text-dim)" }}>
+          <p className="m-0 py-6 text-center text-[14px] leading-relaxed" style={{ color: "var(--text-dim)" }}>
             选一个装了游戏或工具的文件夹，我会递归找出里面的 exe，勾选后批量加入。
           </p>
         )}
       </div>
 
       <div
-        className="flex items-center justify-between border-t px-5 py-3.5"
+        className="modal-footer flex items-center justify-between border-t"
         style={{ borderColor: "var(--border)" }}
       >
-        <span className="text-[11px]" style={{ color: "var(--text-dim)" }}>
-          已选 {selected.size} 个
+        <span className="text-[13px]" style={{ color: "var(--text-dim)" }}>
+          已选 {selectedCount} 个
         </span>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-3">
           <button className="btn" onClick={close} disabled={saving}>
             取消
           </button>
           <button
             className="btn btn-primary"
             onClick={() => void addSelected()}
-            disabled={saving || selected.size === 0}
+            disabled={saving || scanning || selectedCount === 0}
           >
-            {saving ? "加入中…" : `加入选中的 ${selected.size} 个`}
+            {saving ? "加入中…" : `加入选中的 ${selectedCount} 个`}
           </button>
         </div>
       </div>

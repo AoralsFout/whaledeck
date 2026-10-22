@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Database,
   Download,
   FolderOpen,
   ImagePlus,
+  Info,
   Moon,
   Palette,
   Sun,
@@ -17,14 +18,22 @@ import { useLibrary } from "../store/useLibrary";
 import type { Theme, ThemePreset } from "../types";
 import { Modal } from "./Modal";
 
+const TABS = [
+  { id: "appearance", label: "外观", icon: Palette },
+  { id: "categories", label: "分类", icon: Database },
+  { id: "data", label: "数据", icon: Download },
+  { id: "about", label: "关于", icon: Info },
+] as const;
+type SettingsTab = (typeof TABS)[number]["id"];
+
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="space-y-3">
-      <h4 className="m-0 flex items-center gap-2 text-[13px] font-semibold" style={{ color: "var(--text)" }}>
+    <section className="settings-section">
+      <h3 className="m-0 flex items-center gap-2 text-[14px] font-semibold" style={{ color: "var(--text)" }}>
         {icon}
         {title}
-      </h4>
-      {children}
+      </h3>
+      <div className="settings-section-content">{children}</div>
     </section>
   );
 }
@@ -38,6 +47,14 @@ export function SettingsPanel() {
   const [newCat, setNewCat] = useState("");
   const [importArmed, setImportArmed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<SettingsTab>("appearance");
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const selectTab = (next: SettingsTab) => {
+    setTab(next);
+    setImportArmed(false);
+    contentRef.current?.scrollTo({ top: 0 });
+  };
 
   if (!settings) return null;
   const theme = settings.theme;
@@ -108,222 +125,293 @@ export function SettingsPanel() {
   };
 
   return (
-    <Modal onClose={closeSettings} width={720}>
+    <Modal title="设置" onClose={closeSettings} width={780}>
       <div
-        className="flex items-center justify-between border-b px-5 py-3.5"
+        className="settings-header border-b"
         style={{ borderColor: "var(--border)" }}
       >
-        <h3 className="m-0 text-[15px] font-semibold">设置</h3>
-        <button className="btn btn-ghost !p-1" onClick={closeSettings} aria-label="关闭">
-          <X size={16} />
-        </button>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="m-0 text-[17px] font-semibold">设置</h2>
+          <button className="btn btn-ghost !p-1" onClick={closeSettings} aria-label="关闭">
+            <X size={16} />
+          </button>
+        </div>
+        <div
+          className="settings-tabs"
+          role="tablist"
+          aria-label="设置分类"
+          onKeyDown={(event) => {
+            const focusedTab = (event.target as HTMLElement).closest('[role="tab"]');
+            const current = TABS.findIndex((item) => `settings-tab-${item.id}` === focusedTab?.id);
+            if (current < 0) return;
+            let next = current;
+            if (event.key === "ArrowRight") next = (current + 1) % TABS.length;
+            else if (event.key === "ArrowLeft") next = (current - 1 + TABS.length) % TABS.length;
+            else if (event.key === "Home") next = 0;
+            else if (event.key === "End") next = TABS.length - 1;
+            else return;
+            event.preventDefault();
+            selectTab(TABS[next].id);
+            event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
+          }}
+        >
+          {TABS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              id={`settings-tab-${id}`}
+              role="tab"
+              aria-selected={tab === id}
+              aria-controls={`settings-panel-${id}`}
+              tabIndex={tab === id ? 0 : -1}
+              className="settings-tab"
+              onClick={() => selectTab(id)}
+            >
+              <Icon size={16} aria-hidden="true" />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="max-h-[72vh] space-y-6 overflow-y-auto px-5 py-4">
-        <Section title="外观 · 配色" icon={<Palette size={14} />}>
-          <div className="grid grid-cols-4 gap-2">
-            {(Object.keys(PRESETS) as ThemePreset[]).map((key) => {
-              const p = PRESETS[key];
-              const active = theme.preset === key;
-              return (
-                <button
-                  key={key}
-                  onClick={() => patchTheme(presetToTheme(key, theme))}
-                  className="rounded-xl border px-2.5 py-2 text-left transition-all"
-                  style={{
-                    borderColor: active ? "rgba(var(--primary-rgb), .65)" : "var(--border)",
-                    background: active ? "rgba(var(--primary-rgb), .08)" : "var(--surface-2)",
-                  }}
-                  title={p.blurb}
-                >
-                  <div
-                    className="mb-1.5 h-1.5 w-full rounded-full"
-                    style={{ background: `linear-gradient(90deg, ${p.primary}, ${p.accent})` }}
+      <div className="settings-body" ref={contentRef}>
+        <div
+          key={tab}
+          id={`settings-panel-${tab}`}
+          role="tabpanel"
+          aria-labelledby={`settings-tab-${tab}`}
+          tabIndex={0}
+          className="settings-page animate-fade-in"
+        >
+          {tab === "appearance" && (
+            <>
+              <Section title="主题配色" icon={<Palette size={16} aria-hidden="true" />}>
+                <div className="settings-presets grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {(Object.keys(PRESETS) as ThemePreset[]).map((key) => {
+                    const p = PRESETS[key];
+                    const active = theme.preset === key;
+                    return (
+                      <button
+                        key={key}
+                        aria-pressed={active}
+                        onClick={() => patchTheme(presetToTheme(key, theme))}
+                        className="settings-preset rounded-xl border text-left"
+                        style={{
+                          borderColor: active ? "rgba(var(--primary-rgb), .65)" : "var(--border)",
+                          background: active ? "rgba(var(--primary-rgb), .08)" : "var(--surface-2)",
+                        }}
+                        title={p.blurb}
+                      >
+                        <div
+                          className="h-1.5 w-full rounded-full"
+                          style={{ background: `linear-gradient(90deg, ${p.primary}, ${p.accent})` }}
+                        />
+                        <span className="text-[13px] font-medium">{p.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="settings-colors grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="label" htmlFor="theme-primary">主色</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        aria-label="选择主色"
+                        value={theme.primary}
+                        onChange={(e) => patchTheme({ primary: e.target.value })}
+                        className="settings-color-input"
+                      />
+                      <input
+                        className="input font-mono !text-[11px] uppercase"
+                        id="theme-primary"
+                        value={theme.primary}
+                        onChange={(e) => patchTheme({ primary: e.target.value })}
+                        spellCheck={false}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="theme-accent">强调色</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        aria-label="选择强调色"
+                        value={theme.accent}
+                        onChange={(e) => patchTheme({ accent: e.target.value })}
+                        className="settings-color-input"
+                      />
+                      <input
+                        className="input font-mono !text-[11px] uppercase"
+                        id="theme-accent"
+                        value={theme.accent}
+                        onChange={(e) => patchTheme({ accent: e.target.value })}
+                        spellCheck={false}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label">明暗模式</label>
+                  <div className="flex flex-wrap gap-2" role="group" aria-label="明暗模式">
+                    {(
+                      [
+                        { key: "dark", label: "深色", icon: <Moon size={13} /> },
+                        { key: "light", label: "浅色", icon: <Sun size={13} /> },
+                        { key: "system", label: "跟随系统", icon: <Palette size={13} /> },
+                      ] as const
+                    ).map((m) => (
+                      <button
+                        key={m.key}
+                        aria-pressed={theme.mode === m.key}
+                        className="btn"
+                        style={
+                          theme.mode === m.key
+                            ? { borderColor: "rgba(var(--primary-rgb), .6)", color: "var(--primary-ink)", background: "rgba(var(--primary-rgb), .1)" }
+                            : undefined
+                        }
+                        onClick={() => patchTheme({ mode: m.key })}
+                      >
+                        {m.icon}
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </Section>
+
+              <Section title="背景图" icon={<ImagePlus size={16} aria-hidden="true" />}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button className="btn" onClick={() => void pickBackground()} disabled={busy}>
+                    <ImagePlus size={14} />
+                    {theme.backgroundFile ? "更换背景图" : "选择背景图"}
+                  </button>
+                  {theme.backgroundFile && (
+                    <button className="btn btn-ghost" onClick={() => patchTheme({ backgroundFile: null })}>
+                      <Trash2 size={14} />
+                      清除
+                    </button>
+                  )}
+                  <span className="hint">{theme.backgroundFile ? "已设置（可随时换）" : "支持 png / jpg / webp"}</span>
+                </div>
+                <div>
+                  <label className="label" htmlFor="background-dim">背景遮罩强度（{Math.round(theme.backgroundDim * 100)}%）</label>
+                  <input
+                    id="background-dim"
+                    type="range"
+                    min={0}
+                    max={95}
+                    value={Math.round(theme.backgroundDim * 100)}
+                    onChange={(e) => patchTheme({ backgroundDim: Number(e.target.value) / 100 })}
+                    className="w-full accent-[var(--primary)]"
                   />
-                  <span className="text-[12px]">{p.name}</span>
-                </button>
-              );
-            })}
-          </div>
+                  <p className="hint m-0">数值越大背景越暗，文字更清晰。</p>
+                </div>
+              </Section>
+            </>
+          )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">主色</label>
-              <div className="flex items-center gap-2">
+          {tab === "categories" && (
+            <Section title="分类管理" icon={<Database size={16} aria-hidden="true" />}>
+              <p className="hint m-0">按自己的习惯整理游戏和项目，分类会显示在游戏库侧栏。</p>
+              <div className="flex gap-2">
                 <input
-                  type="color"
-                  value={theme.primary}
-                  onChange={(e) => patchTheme({ primary: e.target.value })}
-                  className="h-9 w-10 cursor-pointer rounded-lg border-0 bg-transparent p-0"
+                  aria-label="新增分类"
+                  className="input"
+                  value={newCat}
+                  onChange={(e) => setNewCat(e.target.value)}
+                  placeholder="新增一个分类，例如「独立游戏」"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") addCategory();
+                  }}
                 />
-                <input
-                  className="input font-mono !text-[11px] uppercase"
-                  value={theme.primary}
-                  onChange={(e) => patchTheme({ primary: e.target.value })}
-                  spellCheck={false}
-                />
+                <button className="btn shrink-0" onClick={addCategory}>
+                  添加
+                </button>
               </div>
-            </div>
-            <div>
-              <label className="label">强调色</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={theme.accent}
-                  onChange={(e) => patchTheme({ accent: e.target.value })}
-                  className="h-9 w-10 cursor-pointer rounded-lg border-0 bg-transparent p-0"
-                />
-                <input
-                  className="input font-mono !text-[11px] uppercase"
-                  value={theme.accent}
-                  onChange={(e) => patchTheme({ accent: e.target.value })}
-                  spellCheck={false}
-                />
+              <div className="settings-category-list flex flex-wrap gap-2">
+                {settings.categories.length === 0 && (
+                  <span className="hint">还没有自定义分类，游戏编辑时填写的分类也会自动出现在侧边栏。</span>
+                )}
+                {settings.categories.map((c) => (
+                  <span key={c} className="chip">
+                    {c}
+                    <button
+                      className="settings-category-remove rounded-full hover:bg-white/10"
+                      onClick={() => removeCategory(c)}
+                      aria-label={`删除分类 ${c}`}
+                    >
+                      <X size={10} />
+                    </button>
+                  </span>
+                ))}
               </div>
-            </div>
-          </div>
+              <p className="hint m-0">
+                当前库里有 {games.length} 个游戏；删除分类不会改动游戏本身。
+              </p>
+            </Section>
+          )}
 
-          <div>
-            <label className="label">明暗模式</label>
-            <div className="flex gap-2">
-              {(
-                [
-                  { key: "dark", label: "深色", icon: <Moon size={13} /> },
-                  { key: "light", label: "浅色", icon: <Sun size={13} /> },
-                  { key: "system", label: "跟随系统", icon: <Palette size={13} /> },
-                ] as const
-              ).map((m) => (
-                <button
-                  key={m.key}
-                  className="btn"
-                  style={
-                    theme.mode === m.key
-                      ? { borderColor: "rgba(var(--primary-rgb), .6)", color: "var(--primary)", background: "rgba(var(--primary-rgb), .1)" }
-                      : undefined
-                  }
-                  onClick={() => patchTheme({ mode: m.key })}
-                >
-                  {m.icon}
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </Section>
+          {tab === "data" && (
+            <>
+              <Section title="本地数据" icon={<FolderOpen size={16} aria-hidden="true" />}>
+                <p className="hint m-0">游戏库与外观设置保存在本机，可以随时打开目录查看。</p>
+                  <button className="btn" onClick={() => void api.openDataDir()} disabled={busy}>
+                    <FolderOpen size={14} />
+                    打开数据目录
+                  </button>
+              </Section>
+              <Section title="备份与迁移" icon={<Download size={16} aria-hidden="true" />}>
+                <p className="hint m-0">导出游戏库留作备份，或从已有备份恢复。</p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button className="btn" onClick={() => void doExport()} disabled={busy}>
+                    <Download size={14} />
+                    导出游戏库
+                  </button>
+                  {importArmed ? (
+                    <>
+                      <button className="btn btn-danger" onClick={() => void doImport()} disabled={busy}>
+                        <Upload size={14} />
+                        确认覆盖导入
+                      </button>
+                      <button className="btn" onClick={() => setImportArmed(false)}>
+                        取消
+                      </button>
+                    </>
+                  ) : (
+                    <button className="btn" onClick={() => setImportArmed(true)} disabled={busy}>
+                      <Upload size={14} />
+                      导入游戏库
+                    </button>
+                  )}
+                </div>
+                <p className="hint m-0">
+                  导出会同时复制封面到备份旁边的 <code>.covers</code> 文件夹。导入会覆盖当前库，请先导出备份。
+                </p>
+              </Section>
+            </>
+          )}
 
-        <Section title="外观 · 背景图" icon={<ImagePlus size={14} />}>
-          <div className="flex items-center gap-2">
-            <button className="btn" onClick={() => void pickBackground()} disabled={busy}>
-              <ImagePlus size={14} />
-              {theme.backgroundFile ? "更换背景图" : "选择背景图"}
-            </button>
-            {theme.backgroundFile && (
-              <button className="btn btn-ghost" onClick={() => patchTheme({ backgroundFile: null })}>
-                <Trash2 size={14} />
-                清除
-              </button>
-            )}
-            <span className="hint">{theme.backgroundFile ? "已设置（可随时换）" : "支持 png / jpg / webp"}</span>
-          </div>
-          <div>
-            <label className="label">背景遮罩强度（{Math.round(theme.backgroundDim * 100)}%）</label>
-            <input
-              type="range"
-              min={0}
-              max={95}
-              value={Math.round(theme.backgroundDim * 100)}
-              onChange={(e) => patchTheme({ backgroundDim: Number(e.target.value) / 100 })}
-              className="w-full accent-[var(--primary)]"
-            />
-            <p className="hint m-0">数值越大背景越暗，文字更清晰。</p>
-          </div>
-        </Section>
-
-        <Section title="分类管理" icon={<Database size={14} />}>
-          <div className="flex gap-2">
-            <input
-              className="input"
-              value={newCat}
-              onChange={(e) => setNewCat(e.target.value)}
-              placeholder="新增一个分类，例如「独立游戏」"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") addCategory();
-              }}
-            />
-            <button className="btn shrink-0" onClick={addCategory}>
-              添加
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {settings.categories.length === 0 && (
-              <span className="hint">还没有自定义分类，游戏编辑时填写的分类也会自动出现在侧边栏。</span>
-            )}
-            {settings.categories.map((c) => (
-              <span key={c} className="chip">
-                {c}
-                <button
-                  className="ml-0.5 rounded-full p-0.5 hover:bg-white/10"
-                  onClick={() => removeCategory(c)}
-                  aria-label={`删除分类 ${c}`}
-                >
-                  <X size={10} />
-                </button>
-              </span>
-            ))}
-          </div>
-          <p className="hint m-0">
-            当前库里有 {games.length} 个游戏；删除分类不会改动游戏本身。
-          </p>
-        </Section>
-
-        <Section title="数据" icon={<Download size={14} />}>
-          <div className="flex flex-wrap items-center gap-2">
-            <button className="btn" onClick={() => void api.openDataDir()} disabled={busy}>
-              <FolderOpen size={14} />
-              打开数据目录
-            </button>
-            <button className="btn" onClick={() => void doExport()} disabled={busy}>
-              <Download size={14} />
-              导出游戏库
-            </button>
-            {importArmed ? (
-              <>
-                <button className="btn btn-danger" onClick={() => void doImport()} disabled={busy}>
-                  <Upload size={14} />
-                  确认覆盖导入
-                </button>
-                <button className="btn" onClick={() => setImportArmed(false)}>
-                  取消
-                </button>
-              </>
-            ) : (
-              <button className="btn" onClick={() => setImportArmed(true)} disabled={busy}>
-                <Upload size={14} />
-                导入游戏库
-              </button>
-            )}
-          </div>
-          <p className="hint m-0">
-            导出会同时复制封面到备份旁边的 <code>.covers</code> 文件夹。导入会覆盖当前库，请先导出备份。
-          </p>
-        </Section>
-
-        <Section title="关于" icon={<Palette size={14} />}>
-          <div className="space-y-1 text-[12px]" style={{ color: "var(--text-dim)" }}>
-            <p className="m-0">WhaleDeck v0.8.1 · 本地游戏 / 项目启动台</p>
-            <p className="m-0">
-              GitHub:{" "}
-              <span className="select-text" style={{ color: "var(--primary)" }}>
-                github.com/shasha111250/whaledeck
-              </span>
-            </p>
-            <p className="m-0">数据只保存在本机，不会上传到任何服务器。</p>
-          </div>
-        </Section>
+          {tab === "about" && (
+            <Section title="WhaleDeck" icon={<Info size={16} aria-hidden="true" />}>
+              <div className="settings-about text-[13px]" style={{ color: "var(--text-dim)" }}>
+                <p className="m-0">WhaleDeck v0.8.1 · 本地游戏 / 项目启动台</p>
+                <p className="m-0">
+                  GitHub:{" "}
+                  <span className="select-text" style={{ color: "var(--primary-ink)" }}>
+                    github.com/shasha111250/whaledeck
+                  </span>
+                </p>
+                <p className="m-0">数据只保存在本机，不会上传到任何服务器。</p>
+              </div>
+            </Section>
+          )}
+        </div>
       </div>
 
       <div
-        className="flex items-center justify-between border-t px-5 py-3"
+        className="settings-footer flex items-center justify-between border-t"
         style={{ borderColor: "var(--border)" }}
       >
         <span className="hint">设置即时生效并自动保存</span>

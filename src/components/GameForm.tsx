@@ -26,6 +26,7 @@ export function GameForm() {
     (editing?.extraProcessNames ?? []).join(", "),
   );
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<{ title?: string; path?: string }>({});
   const coverUrl = useAssetUrl("cover", draft.coverFile);
 
   const patch = (part: Partial<Game>) => setDraft((d) => ({ ...d, ...part }));
@@ -97,12 +98,13 @@ export function GameForm() {
   const save = async () => {
     const title = draft.title.trim();
     const exePath = draft.exePath.trim();
-    if (!title) {
-      showToast("error", "请填写名称");
-      return;
-    }
-    if (!exePath) {
-      showToast("error", "请选择要加入的程序、文件或文件夹");
+    const nextErrors = {
+      title: title ? undefined : "请填写名称",
+      path: exePath ? undefined : "请选择要加入的程序、文件或文件夹",
+    };
+    setErrors(nextErrors);
+    if (nextErrors.title || nextErrors.path) {
+      document.getElementById(nextErrors.title ? "game-title" : "game-path")?.focus();
       return;
     }
     const game: Game = {
@@ -118,14 +120,7 @@ export function GameForm() {
 
     setSaving(true);
     try {
-      await api.saveGame(game);
-      const state = useLibrary.getState();
-      state.closeForm();
-      state.showToast("success", isNew ? "已加入" : "修改已保存");
-      await state.init();
-      useLibrary.getState().select(game.id);
-    } catch (err) {
-      showToast("error", String(err));
+      await useLibrary.getState().saveGame(game);
     } finally {
       setSaving(false);
     }
@@ -134,21 +129,21 @@ export function GameForm() {
   const processLike = isProcessTarget(draft.exePath);
 
   return (
-    <Modal onClose={closeForm} width={680}>
+    <Modal title={isNew ? "加入新项目" : "编辑项目"} onClose={() => { if (!saving) closeForm(); }} width={680}>
       <div
-        className="flex items-center justify-between border-b px-5 py-3.5"
+        className="modal-header flex items-center justify-between border-b"
         style={{ borderColor: "var(--border)" }}
       >
-        <h3 className="m-0 text-[15px] font-semibold">
+        <h2 className="modal-title m-0 font-semibold">
           {isNew ? "加入新项目" : "编辑项目"}
-        </h3>
-        <button className="btn btn-ghost !p-1" onClick={closeForm} aria-label="关闭">
+        </h2>
+        <button className="btn btn-ghost !p-1" onClick={closeForm} disabled={saving} aria-label="关闭">
           <X size={16} />
         </button>
       </div>
 
-      <div className="max-h-[68vh] space-y-4 overflow-y-auto px-5 py-4">
-        <div className="flex items-center gap-3">
+      <div className="modal-body form-body">
+        <div className="form-cover flex flex-wrap items-center gap-4">
           <div
             className="h-20 w-32 shrink-0 overflow-hidden rounded-xl border"
             style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
@@ -161,8 +156,8 @@ export function GameForm() {
               </div>
             )}
           </div>
-          <div className="space-y-1.5">
-            <div className="flex gap-2">
+          <div className="form-cover-info">
+            <div className="flex flex-wrap gap-2">
               <button className="btn" onClick={() => void pickCover()}>
                 <ImagePlus size={14} />
                 选择封面
@@ -177,23 +172,32 @@ export function GameForm() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="form-fields grid grid-cols-2 gap-4">
           <div className="col-span-2">
-            <label className="label">名称 *</label>
+            <label className="label" htmlFor="game-title">名称 *</label>
             <input
+              id="game-title"
+              required
+              aria-invalid={Boolean(errors.title)}
+              aria-describedby={errors.title ? "game-title-error" : undefined}
               className="input"
               value={draft.title}
               onChange={(e) => patch({ title: e.target.value })}
               placeholder="例如：星露谷物语 / 我的项目文件夹"
               autoFocus
             />
+            {errors.title && <p id="game-title-error" className="field-error" role="alert">{errors.title}</p>}
           </div>
 
           <div className="col-span-2">
-            <label className="label">程序 / 文件 / 文件夹 *（任何类型都可以）</label>
-            <div className="flex gap-2">
+            <label className="label" htmlFor="game-path">程序 / 文件 / 文件夹 *（任何类型都可以）</label>
+            <div className="form-path flex gap-2">
               <input
-                className="input font-mono !text-[11px]"
+                id="game-path"
+                required
+                aria-invalid={Boolean(errors.path)}
+                aria-describedby={errors.path ? "game-path-error" : "game-path-hint"}
+                className="input font-mono"
                 value={draft.exePath}
                 onChange={(e) => patch({ exePath: e.target.value })}
                 placeholder="C:\Games\xxx\xxx.exe 或 C:\Docs\笔记.pdf 或某个文件夹"
@@ -207,7 +211,8 @@ export function GameForm() {
                 文件夹
               </button>
             </div>
-            <p className="hint mt-1">
+            {errors.path && <p id="game-path-error" className="field-error" role="alert">{errors.path}</p>}
+            <p id="game-path-hint" className="hint mt-1">
               {!draft.exePath
                 ? "exe / bat / cmd 会以进程启动并统计时长；快捷方式、文档、图片、文件夹用系统默认方式打开，只记录最近打开。"
                 : processLike
@@ -217,10 +222,11 @@ export function GameForm() {
           </div>
 
           <div className="col-span-2">
-            <label className="label">工作目录（仅进程启动时生效）</label>
+            <label className="label" htmlFor="game-workdir">工作目录（仅进程启动时生效）</label>
             <div className="flex gap-2">
               <input
-                className="input font-mono !text-[11px]"
+                id="game-workdir"
+                className="input font-mono"
                 value={draft.workDir}
                 onChange={(e) => patch({ workDir: e.target.value })}
                 placeholder="留空则使用程序所在目录"
@@ -234,8 +240,9 @@ export function GameForm() {
           </div>
 
           <div>
-            <label className="label">分类</label>
+            <label className="label" htmlFor="game-category">分类</label>
             <input
+              id="game-category"
               className="input"
               list="category-suggestions"
               value={draft.category}
@@ -250,8 +257,9 @@ export function GameForm() {
           </div>
 
           <div>
-            <label className="label">标签（逗号分隔）</label>
+            <label className="label" htmlFor="game-tags">标签（逗号分隔）</label>
             <input
+              id="game-tags"
               className="input"
               value={tagsText}
               onChange={(e) => setTagsText(e.target.value)}
@@ -260,9 +268,10 @@ export function GameForm() {
           </div>
 
           <div className="col-span-2">
-            <label className="label">启动参数</label>
+            <label className="label" htmlFor="game-args">启动参数</label>
             <input
-              className="input font-mono !text-[11px]"
+              id="game-args"
+              className="input font-mono"
               value={draft.args}
               onChange={(e) => patch({ args: e.target.value })}
               placeholder="可选，例如 -windowed -dx11"
@@ -271,8 +280,9 @@ export function GameForm() {
           </div>
 
           <div className="col-span-2">
-            <label className="label">额外进程名（可选，逗号分隔）</label>
+            <label className="label" htmlFor="game-processes">额外进程名（可选，逗号分隔）</label>
             <input
+              id="game-processes"
               className="input"
               value={extraText}
               onChange={(e) => setExtraText(e.target.value)}
@@ -290,11 +300,12 @@ export function GameForm() {
                 存档目录（可多个，用于备份）
               </span>
             </label>
-            <div className="space-y-1.5">
+            <div className="form-save-paths">
               {draft.savePaths.map((path, index) => (
-                <div className="flex gap-2" key={`${index}-${path}`}>
+                <div className="flex gap-2" key={index}>
                   <input
-                    className="input font-mono !text-[11px]"
+                    aria-label={`存档目录 ${index + 1}`}
+                    className="input font-mono"
                     value={path}
                     onChange={(e) =>
                       setDraft((d) => ({
@@ -326,8 +337,9 @@ export function GameForm() {
           </div>
 
           <div className="col-span-2">
-            <label className="label">备注</label>
+            <label className="label" htmlFor="game-note">备注</label>
             <textarea
+              id="game-note"
               className="input min-h-[64px] resize-y"
               value={draft.note}
               onChange={(e) => patch({ note: e.target.value })}
@@ -335,8 +347,8 @@ export function GameForm() {
             />
           </div>
 
-          <div className="col-span-2 flex items-center gap-5 pt-1">
-            <label className="flex cursor-pointer items-center gap-2 text-[12px]">
+          <div className="form-flags col-span-2 flex flex-wrap items-center gap-4 pt-1">
+            <label className="flex cursor-pointer items-center gap-2 text-[13px]">
               <input
                 type="checkbox"
                 className="accent-[var(--primary)]"
@@ -346,7 +358,7 @@ export function GameForm() {
               <Star size={13} style={{ color: draft.favorite ? "#ffd166" : "var(--text-dim)" }} />
               加入收藏
             </label>
-            <label className="flex cursor-pointer items-center gap-2 text-[12px]">
+            <label className="flex cursor-pointer items-center gap-2 text-[13px]">
               <input
                 type="checkbox"
                 className="accent-[var(--primary)]"
@@ -361,7 +373,7 @@ export function GameForm() {
       </div>
 
       <div
-        className="flex justify-end gap-2 border-t px-5 py-3.5"
+        className="modal-footer flex justify-end gap-3 border-t"
         style={{ borderColor: "var(--border)" }}
       >
         <button className="btn" onClick={closeForm} disabled={saving}>
