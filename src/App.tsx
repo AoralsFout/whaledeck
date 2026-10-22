@@ -10,6 +10,7 @@ import { ScanDialog } from "./components/ScanDialog";
 import { MetaDialog } from "./components/MetaDialog";
 import { EmptyState } from "./components/EmptyState";
 import { Toast } from "./components/Toast";
+import { WindowChrome } from "./components/WindowChrome";
 
 export default function App() {
   const ready = useLibrary((s) => s.ready);
@@ -85,10 +86,12 @@ export default function App() {
   if (!ready) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
+        <WindowChrome />
         <div className="text-5xl">🐋</div>
         <p className="m-0 text-sm" style={{ color: "var(--text-dim)" }}>
           正在打开游戏库…
         </p>
+        <Toast />
       </div>
     );
   }
@@ -97,6 +100,7 @@ export default function App() {
 
   return (
     <div className="flex h-full">
+      <WindowChrome />
       <Sidebar />
       <main className="relative min-w-0 flex-1">
         {selected ? <GameDetail /> : <EmptyState onAdd={openNew} />}

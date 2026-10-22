@@ -80,9 +80,10 @@ export function Sidebar() {
         backdropFilter: "blur(24px) saturate(1.15)",
       }}
     >
-      <div className="flex items-center gap-2 px-3.5 pb-2.5 pt-4">
+      <div className="flex items-center gap-2 px-3.5 pb-2.5 pt-4" data-tauri-drag-region>
         <div
           className="flex h-8 w-8 items-center justify-center rounded-lg text-base"
+          data-tauri-drag-region
           style={{
             background: "linear-gradient(135deg, rgba(var(--primary-rgb), .22), rgba(var(--accent-rgb), .18))",
             border: "1px solid rgba(var(--primary-rgb), .3)",
@@ -90,9 +91,9 @@ export function Sidebar() {
         >
           🐋
         </div>
-        <div className="min-w-0 leading-tight">
-          <p className="m-0 text-[14px] font-semibold tracking-wide">WhaleDeck</p>
-          <p className="m-0 text-[9px]" style={{ color: "var(--text-dim)" }}>
+        <div className="min-w-0 leading-tight" data-tauri-drag-region>
+          <p className="m-0 text-[14px] font-semibold tracking-wide" data-tauri-drag-region>WhaleDeck</p>
+          <p className="m-0 text-[9px]" style={{ color: "var(--text-dim)" }} data-tauri-drag-region>
             鲸鱼游戏台
           </p>
         </div>
