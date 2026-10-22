@@ -16,7 +16,7 @@ function Thumb({ game }: { game: Game }) {
   const cover = useAssetUrl("cover", game.coverFile);
   return (
     <div
-      className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg"
+      className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
       style={{
         background: "linear-gradient(135deg, rgba(var(--primary-rgb), .25), rgba(var(--accent-rgb), .18))",
       }}
@@ -24,7 +24,7 @@ function Thumb({ game }: { game: Game }) {
       {cover ? (
         <img src={cover} alt="" className="h-full w-full object-cover" draggable={false} />
       ) : (
-        <span className="text-sm font-semibold" style={{ color: "rgba(var(--primary-rgb), .9)" }}>
+        <span className="text-[13px] font-semibold" style={{ color: "rgba(var(--primary-rgb), .9)" }}>
           {(game.title || "?").charAt(0).toUpperCase()}
         </span>
       )}
@@ -66,16 +66,16 @@ export function Sidebar() {
 
   return (
     <aside
-      className="flex w-[300px] shrink-0 flex-col border-r"
+      className="flex w-[258px] shrink-0 flex-col border-r"
       style={{
         borderColor: "var(--border)",
-        background: "color-mix(in srgb, var(--surface) 62%, transparent)",
-        backdropFilter: "blur(20px)",
+        background: "color-mix(in srgb, var(--surface) 48%, transparent)",
+        backdropFilter: "blur(24px) saturate(1.15)",
       }}
     >
-      <div className="flex items-center gap-2.5 px-4 pb-3 pt-5">
+      <div className="flex items-center gap-2 px-3.5 pb-2.5 pt-4">
         <div
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-lg"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-base"
           style={{
             background: "linear-gradient(135deg, rgba(var(--primary-rgb), .22), rgba(var(--accent-rgb), .18))",
             border: "1px solid rgba(var(--primary-rgb), .3)",
@@ -84,29 +84,29 @@ export function Sidebar() {
           🐋
         </div>
         <div className="min-w-0 leading-tight">
-          <p className="m-0 text-[15px] font-semibold tracking-wide">WhaleDeck</p>
-          <p className="m-0 text-[10px]" style={{ color: "var(--text-dim)" }}>
+          <p className="m-0 text-[14px] font-semibold tracking-wide">WhaleDeck</p>
+          <p className="m-0 text-[9px]" style={{ color: "var(--text-dim)" }}>
             鲸鱼游戏台
           </p>
         </div>
         <button
-          className="btn btn-ghost ml-auto !p-1.5"
+          className="btn btn-ghost ml-auto !p-1"
           onClick={openSettings}
           title="设置"
         >
-          <Settings size={15} />
+          <Settings size={14} />
         </button>
       </div>
 
       <div className="space-y-2 px-3">
         <div className="relative">
           <Search
-            size={14}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
+            size={13}
+            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2"
             style={{ color: "var(--text-dim)" }}
           />
           <input
-            className="input pl-8 pr-7 !py-2 text-[12px]"
+            className="input !py-1.5 pl-7 pr-6 text-[11.5px]"
             placeholder="搜索游戏、分类、标签…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -114,12 +114,12 @@ export function Sidebar() {
           />
           {query && (
             <button
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5"
               style={{ color: "var(--text-dim)" }}
               onClick={() => setQuery("")}
               aria-label="清空搜索"
             >
-              <X size={12} />
+              <X size={11} />
             </button>
           )}
         </div>
@@ -139,7 +139,7 @@ export function Sidebar() {
               <button
                 key={chip.type + ("name" in chip ? chip.name : "")}
                 onClick={() => setNav(chip)}
-                className="shrink-0 rounded-full px-2.5 py-1 text-[11px] transition-colors"
+                className="shrink-0 rounded-full px-2 py-0.5 text-[10.5px] transition-colors"
                 style={{
                   background: active ? "rgba(var(--primary-rgb), .16)" : "var(--surface-2)",
                   color: active ? "var(--primary)" : "var(--text-dim)",
@@ -160,7 +160,7 @@ export function Sidebar() {
               style={{ color: "var(--text-dim)" }}
             />
             <select
-              className="input cursor-pointer appearance-none !py-1.5 pl-7 pr-2 text-[11px]"
+              className="input cursor-pointer appearance-none !py-1 pl-6 pr-2 text-[10.5px]"
               value={sort}
               onChange={(e) => void setSort(e.target.value as SortKey)}
               title="排序方式"
@@ -172,11 +172,11 @@ export function Sidebar() {
               ))}
             </select>
           </div>
-          <button className="btn !px-2 !py-1.5" onClick={() => void openScan()} title="扫描文件夹">
-            <FolderSearch size={14} />
+          <button className="btn !px-2 !py-1" onClick={() => void openScan()} title="扫描文件夹">
+            <FolderSearch size={13} />
           </button>
-          <button className="btn btn-primary !px-2.5 !py-1.5" onClick={openNew} title="添加">
-            <Plus size={14} />
+          <button className="btn btn-primary !px-2 !py-1" onClick={openNew} title="添加">
+            <Plus size={13} />
           </button>
         </div>
       </div>
@@ -195,7 +195,7 @@ export function Sidebar() {
               key={game.id}
               onClick={() => select(game.id)}
               onDoubleClick={() => void useLibrary.getState().launchGame(game.id)}
-              className="mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors"
+              className="mb-0.5 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors"
               style={{
                 background: active ? "rgba(var(--primary-rgb), .13)" : "transparent",
                 border: `1px solid ${active ? "rgba(var(--primary-rgb), .3)" : "transparent"}`,
@@ -204,10 +204,10 @@ export function Sidebar() {
             >
               <Thumb game={game} />
               <div className="min-w-0 flex-1">
-                <p className="m-0 truncate text-[12.5px]" style={{ color: active ? "var(--text)" : "var(--text)" }}>
+                <p className="m-0 truncate text-[12px]" style={{ color: active ? "var(--text)" : "var(--text)" }}>
                   {game.title}
                 </p>
-                <p className="m-0 truncate text-[10px]" style={{ color: "var(--text-dim)" }}>
+                <p className="m-0 truncate text-[9.5px]" style={{ color: "var(--text-dim)" }}>
                   {formatRelative(game.lastPlayedAt)} · {formatPlaytime(game.playtimeSec)}
                 </p>
               </div>
@@ -227,7 +227,7 @@ export function Sidebar() {
         style={{ borderColor: "var(--border)" }}
       >
         <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>
-          共 {games.length} 个 · v0.6.0
+          共 {games.length} 个 · v0.6.1
         </span>
         <button
           className="btn btn-ghost !px-2 !py-1 text-[10px]"

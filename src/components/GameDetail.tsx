@@ -27,7 +27,12 @@ import { api } from "../lib/ipc";
 import { useLibrary } from "../store/useLibrary";
 import { isProcessTarget, type SaveBackup } from "../types";
 
-const PANEL_BG = "rgba(10, 16, 30, 0.55)";
+const PANEL_BG = "rgba(10, 16, 30, 0.38)";
+const PANEL_STYLE = {
+  background: PANEL_BG,
+  border: "1px solid rgba(255,255,255,.09)",
+  backdropFilter: "blur(16px)",
+} as const;
 
 function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
@@ -191,7 +196,7 @@ export function GameDetail() {
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(180deg, rgba(5,9,18,.25) 0%, rgba(5,9,18,.55) 42%, color-mix(in srgb, var(--bg) 90%, transparent) 78%, var(--bg) 100%)",
+              "linear-gradient(180deg, rgba(5,9,18,.06) 0%, rgba(5,9,18,.2) 36%, rgba(5,9,18,.58) 64%, color-mix(in srgb, var(--bg) 88%, transparent) 84%, var(--bg) 100%)",
           }}
         />
       </div>
@@ -199,7 +204,7 @@ export function GameDetail() {
       {/* 内容 */}
       <div className="relative h-full overflow-y-auto">
         <div className="flex min-h-full flex-col justify-end px-10 pb-8 pt-20">
-          <div className="flex items-end justify-between gap-8">
+          <div className="flex items-end gap-8">
             <div className="min-w-0 flex-1">
               <h1
                 className="m-0 truncate text-3xl font-semibold text-white"
@@ -300,19 +305,6 @@ export function GameDetail() {
                 )}
               </div>
             </div>
-
-            {/* 竖版封面卡 */}
-            {cover && (
-              <div className="hidden shrink-0 xl:block">
-                <img
-                  src={cover}
-                  alt=""
-                  className="h-[300px] w-[200px] rounded-2xl object-cover shadow-2xl"
-                  style={{ border: "1px solid rgba(255,255,255,.18)" }}
-                  draggable={false}
-                />
-              </div>
-            )}
           </div>
 
           {/* 详情卡片 */}
@@ -320,7 +312,7 @@ export function GameDetail() {
             {game.summary && (
               <section
                 className="rounded-xl p-4 text-[12px] leading-5"
-                style={{ background: PANEL_BG, border: "1px solid rgba(255,255,255,.08)" }}
+                style={PANEL_STYLE}
               >
                 <p className="m-0 mb-1.5 text-[11px] font-medium" style={{ color: "rgba(160,180,210,.9)" }}>
                   简介
@@ -331,7 +323,7 @@ export function GameDetail() {
 
             <section
               className="space-y-2.5 rounded-xl p-4 text-[12px]"
-              style={{ background: PANEL_BG, border: "1px solid rgba(255,255,255,.08)" }}
+              style={PANEL_STYLE}
             >
               <Row label="目标">{shortPath(game.exePath)}</Row>
               {processLike && (
@@ -365,7 +357,7 @@ export function GameDetail() {
 
             <section
               className="rounded-xl p-4 text-[12px] xl:col-span-2"
-              style={{ background: PANEL_BG, border: "1px solid rgba(255,255,255,.08)" }}
+              style={PANEL_STYLE}
             >
               <div className="mb-2 flex items-center justify-between">
                 <span className="flex items-center gap-1.5 font-medium text-white/90">
@@ -438,7 +430,7 @@ export function GameDetail() {
             {game.note && (
               <section
                 className="rounded-xl p-4 text-[12px] leading-5 xl:col-span-2"
-                style={{ background: PANEL_BG, border: "1px solid rgba(255,255,255,.08)" }}
+                style={PANEL_STYLE}
               >
                 <p className="m-0 mb-1.5 text-[11px] font-medium" style={{ color: "rgba(160,180,210,.9)" }}>
                   备注

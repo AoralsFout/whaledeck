@@ -1,7 +1,7 @@
 {
   "name": "whaledeck",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "WhaleDeck - 本地游戏库管理器",
   "type": "module",
   "scripts": {
