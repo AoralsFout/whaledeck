@@ -31,6 +31,11 @@ impl Store {
         self.root.join("backgrounds")
     }
 
+    /// 每个游戏的存档备份：backups/<gameId>/
+    pub fn game_backups_dir(&self, game_id: &str) -> PathBuf {
+        self.root.join("backups").join(game_id)
+    }
+
     pub fn games_path(&self) -> PathBuf {
         self.data_dir().join("games.json")
     }
@@ -244,6 +249,7 @@ mod tests {
             playtime_sec: 42,
             last_played_at: None,
             added_at: 1,
+            save_paths: vec![],
         }
     }
 

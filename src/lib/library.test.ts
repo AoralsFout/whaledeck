@@ -19,6 +19,7 @@ function game(partial: Partial<Game>): Game {
     playtimeSec: 0,
     lastPlayedAt: null,
     addedAt: 0,
+    savePaths: [],
     ...partial,
   };
 }

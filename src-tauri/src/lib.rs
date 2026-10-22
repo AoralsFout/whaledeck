@@ -1,6 +1,7 @@
 mod commands;
 mod launcher;
 mod models;
+mod savegame;
 mod store;
 
 use commands::AppState;
@@ -50,15 +51,20 @@ pub fn run() {
             commands::launch_game,
             commands::get_sessions,
             commands::reset_playtime,
-            commands::pick_exe,
+            commands::pick_entry,
             commands::pick_folder,
             commands::pick_image,
+            commands::scan_folder,
             commands::import_cover,
             commands::import_background,
             commands::asset_path,
             commands::get_settings,
             commands::save_settings,
             commands::open_data_dir,
+            commands::backup_saves,
+            commands::list_save_backups,
+            commands::restore_save_backup,
+            commands::open_backups_dir,
             commands::export_library,
             commands::import_library,
         ])

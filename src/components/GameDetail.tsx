@@ -1,19 +1,29 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
+  Archive,
   Clock,
   Copy,
   FolderOpen,
   Pencil,
   Play,
   RotateCcw,
+  Save,
   Star,
   Trash2,
   X,
 } from "lucide-react";
-import { formatDate, formatPlaytime, formatRelative, formatTimer, shortPath } from "../lib/format";
+import {
+  formatBytes,
+  formatDate,
+  formatPlaytime,
+  formatRelative,
+  formatTimer,
+  shortPath,
+} from "../lib/format";
 import { useAssetUrl } from "../lib/useAssetUrl";
 import { api } from "../lib/ipc";
 import { useLibrary } from "../store/useLibrary";
+import { isProcessTarget, type SaveBackup } from "../types";
 
 function CoverFallback({ title }: { title: string }) {
   return (
@@ -57,6 +67,9 @@ export function GameDetail() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [fixTime, setFixTime] = useState(false);
   const [minutes, setMinutes] = useState("");
+  const [backups, setBackups] = useState<SaveBackup[]>([]);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
 
   useEffect(() => {
     if (!running) {
@@ -73,9 +86,25 @@ export function GameDetail() {
   useEffect(() => {
     setConfirmDelete(false);
     setFixTime(false);
+    setRestoreTarget(null);
   }, [game?.id]);
 
+  const refreshBackups = useCallback(async () => {
+    if (!game) return;
+    try {
+      setBackups(await api.listSaveBackups(game.id));
+    } catch {
+      setBackups([]);
+    }
+  }, [game?.id]);
+
+  useEffect(() => {
+    void refreshBackups();
+  }, [refreshBackups]);
+
   if (!game) return null;
+
+  const processLike = isProcessTarget(game.exePath);
 
   const saveTime = async () => {
     const value = Number(minutes);
@@ -96,8 +125,34 @@ export function GameDetail() {
   const copyPath = () => {
     navigator.clipboard
       .writeText(game.exePath)
-      .then(() => showToast("info", "已复制程序路径"))
+      .then(() => showToast("info", "已复制路径"))
       .catch(() => showToast("error", "复制失败"));
+  };
+
+  const doBackup = async () => {
+    setBackupBusy(true);
+    try {
+      const backup = await api.backupSaves(game.id);
+      await refreshBackups();
+      showToast("success", `存档已备份（${formatBytes(backup.size)}）`);
+    } catch (err) {
+      showToast("error", String(err));
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const doRestore = async (file: string) => {
+    setBackupBusy(true);
+    try {
+      const count = await api.restoreSaveBackup(game.id, file);
+      showToast("success", `已还原 ${count} 个文件到存档目录`);
+    } catch (err) {
+      showToast("error", String(err));
+    } finally {
+      setBackupBusy(false);
+      setRestoreTarget(null);
+    }
   };
 
   return (
@@ -146,7 +201,11 @@ export function GameDetail() {
             onClick={() => void launch(game.id)}
           >
             <Play size={15} fill="currentColor" />
-            {running ? `运行中 ${formatTimer(elapsed)}` : "启动游戏"}
+            {running
+              ? `运行中 ${formatTimer(elapsed)}`
+              : processLike
+                ? "启动"
+                : "用默认程序打开"}
           </button>
           <button
             className="btn !px-3 !py-2.5"
@@ -165,16 +224,18 @@ export function GameDetail() {
           className="space-y-2.5 rounded-xl p-3.5 text-[12px]"
           style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
         >
-          <Row label="程序">
+          <Row label="目标">
             <span className="block truncate" title={game.exePath}>
               {shortPath(game.exePath)}
             </span>
           </Row>
-          <Row label="工作目录">
-            <span className="block truncate" title={game.workDir}>
-              {game.workDir ? shortPath(game.workDir) : "（与程序同目录）"}
-            </span>
-          </Row>
+          {processLike && (
+            <Row label="工作目录">
+              <span className="block truncate" title={game.workDir}>
+                {game.workDir ? shortPath(game.workDir) : "（与程序同目录）"}
+              </span>
+            </Row>
+          )}
           {game.args && (
             <Row label="启动参数">
               <span className="block truncate" title={game.args}>
@@ -189,67 +250,150 @@ export function GameDetail() {
           )}
           <Row label="累计时长">
             <span className="font-medium" style={{ color: "var(--text)" }}>
-              {formatPlaytime(game.playtimeSec)}
+              {processLike ? formatPlaytime(game.playtimeSec) : "不统计"}
             </span>
           </Row>
-          <Row label="最近游玩">
+          <Row label="最近打开">
             <span>{formatRelative(game.lastPlayedAt)}</span>
           </Row>
-          <Row label="添加时间">
+          <Row label="加入时间">
             <span>{formatDate(game.addedAt)}</span>
           </Row>
         </section>
 
-        {fixTime ? (
-          <div className="rounded-xl p-3" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
-            <label className="label">修正累计时长（分钟）</label>
-            <div className="flex items-center gap-2">
-              <input
-                className="input"
-                type="number"
-                min={0}
-                value={minutes}
-                placeholder={String(Math.floor(game.playtimeSec / 60))}
-                onChange={(e) => setMinutes(e.target.value)}
-                autoFocus
-              />
-              <button className="btn btn-primary" onClick={() => void saveTime()}>
-                保存
-              </button>
-              <button className="btn" onClick={() => setFixTime(false)}>
-                取消
-              </button>
-            </div>
-            <p className="hint mt-2">填 0 表示清零。记录以本地数据为准。</p>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
+        {processLike && (
+          <>
+            {fixTime ? (
+              <div className="rounded-xl p-3" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+                <label className="label">修正累计时长（分钟）</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    className="input"
+                    type="number"
+                    min={0}
+                    value={minutes}
+                    placeholder={String(Math.floor(game.playtimeSec / 60))}
+                    onChange={(e) => setMinutes(e.target.value)}
+                    autoFocus
+                  />
+                  <button className="btn btn-primary" onClick={() => void saveTime()}>
+                    保存
+                  </button>
+                  <button className="btn" onClick={() => setFixTime(false)}>
+                    取消
+                  </button>
+                </div>
+                <p className="hint mt-2">填 0 表示清零。记录以本地数据为准。</p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  className="btn btn-ghost !px-2 !py-1 text-[11px]"
+                  onClick={() => {
+                    setMinutes(String(Math.floor(game.playtimeSec / 60)));
+                    setFixTime(true);
+                  }}
+                >
+                  <Clock size={12} />
+                  修正时长
+                </button>
+                <button className="btn btn-ghost !px-2 !py-1 text-[11px]" onClick={copyPath}>
+                  <Copy size={12} />
+                  复制路径
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        <section
+          className="rounded-xl p-3.5 text-[12px]"
+          style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+        >
+          <div className="mb-2 flex items-center justify-between">
+            <span className="flex items-center gap-1.5 font-medium">
+              <Archive size={13} />
+              存档备份
+            </span>
             <button
               className="btn btn-ghost !px-2 !py-1 text-[11px]"
-              onClick={() => {
-                setMinutes(String(Math.floor(game.playtimeSec / 60)));
-                setFixTime(true);
-              }}
-            >
-              <Clock size={12} />
-              修正时长
-            </button>
-            <button className="btn btn-ghost !px-2 !py-1 text-[11px]" onClick={copyPath}>
-              <Copy size={12} />
-              复制路径
-            </button>
-            <button
-              className="btn btn-ghost !px-2 !py-1 text-[11px]"
-              onClick={() => showToast("info", `程序所在目录：${game.workDir || "见程序路径"}`)}
+              onClick={() => void api.openBackupsDir(game.id)}
             >
               <FolderOpen size={12} />
-              目录
-            </button>
-            <button className="btn btn-ghost !px-2 !py-1 text-[11px]" onClick={() => void useLibrary.getState().applyGame(game)} title="刷新">
-              <RotateCcw size={12} />
+              备份目录
             </button>
           </div>
-        )}
+
+          {game.savePaths.length === 0 ? (
+            <p className="hint m-0">
+              还没设置存档目录。点右上角「编辑」添加后，就能一键备份存档、坏了再还原。
+            </p>
+          ) : (
+            <>
+              <div className="mb-2 space-y-0.5">
+                {game.savePaths.map((path) => (
+                  <p key={path} className="m-0 truncate" title={path} style={{ color: "var(--text-dim)" }}>
+                    {shortPath(path, 42)}
+                  </p>
+                ))}
+              </div>
+              <button
+                className="btn btn-primary w-full !py-2"
+                onClick={() => void doBackup()}
+                disabled={backupBusy}
+              >
+                <Save size={14} />
+                {backupBusy ? "处理中…" : "立即备份存档"}
+              </button>
+
+              {backups.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {backups.slice(0, 5).map((backup) => (
+                    <div
+                      key={backup.file}
+                      className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5"
+                      style={{ background: "var(--surface)" }}
+                    >
+                      <span className="truncate">
+                        {formatDate(backup.createdAt)}{" "}
+                        {new Date(backup.createdAt).toTimeString().slice(0, 5)}
+                      </span>
+                      <span className="shrink-0 text-[10px]" style={{ color: "var(--text-dim)" }}>
+                        {formatBytes(backup.size)}
+                      </span>
+                      {restoreTarget === backup.file ? (
+                        <div className="flex shrink-0 gap-1">
+                          <button
+                            className="btn btn-danger !px-2 !py-0.5 text-[10px]"
+                            onClick={() => void doRestore(backup.file)}
+                            disabled={backupBusy}
+                          >
+                            确认还原
+                          </button>
+                          <button
+                            className="btn !px-2 !py-0.5 text-[10px]"
+                            onClick={() => setRestoreTarget(null)}
+                          >
+                            取消
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          className="btn shrink-0 !px-2 !py-0.5 text-[10px]"
+                          onClick={() => setRestoreTarget(backup.file)}
+                          title="把备份覆盖回存档目录"
+                        >
+                          <RotateCcw size={10} />
+                          还原
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </section>
 
         {game.note && (
           <div className="rounded-xl p-3 text-[12px] leading-5" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
@@ -264,7 +408,7 @@ export function GameDetail() {
             <div className="space-y-2 rounded-xl p-3" style={{ background: "rgba(244,63,94,.08)", border: "1px solid rgba(244,63,94,.3)" }}>
               <p className="m-0 text-[12px]">确定从库中移除「{game.title}」吗？</p>
               <p className="m-0 text-[11px]" style={{ color: "var(--text-dim)" }}>
-                只删除库里的记录，本地游戏文件不会被动。
+                只删除库里的记录，本地文件与存档都不会被动。
               </p>
               <div className="flex gap-2">
                 <button className="btn btn-danger flex-1" onClick={() => void deleteGame(game.id)}>

@@ -1,4 +1,4 @@
-import { ArrowDownWideNarrow, Plus, Search, X } from "lucide-react";
+import { ArrowDownWideNarrow, FolderSearch, Plus, Search, X } from "lucide-react";
 import { useLibrary } from "../store/useLibrary";
 import type { SortKey } from "../types";
 
@@ -15,6 +15,7 @@ export function TopBar() {
   const sort = useLibrary((s) => s.sort);
   const setSort = useLibrary((s) => s.setSort);
   const openNew = useLibrary((s) => s.openNew);
+  const openScan = useLibrary((s) => s.openScan);
 
   return (
     <header className="flex items-center gap-3 px-7 pb-2 pt-6">
@@ -64,9 +65,14 @@ export function TopBar() {
           </select>
         </div>
 
+        <button className="btn" onClick={openScan} title="扫描文件夹，批量加入里面的 exe">
+          <FolderSearch size={15} />
+          扫描
+        </button>
+
         <button className="btn btn-primary" onClick={openNew}>
           <Plus size={15} />
-          添加游戏
+          添加
         </button>
       </div>
     </header>

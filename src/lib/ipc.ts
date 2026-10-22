@@ -3,6 +3,8 @@ import { listen } from "@tauri-apps/api/event";
 import type {
   Game,
   LaunchResult,
+  SaveBackup,
+  ScanEntry,
   Session,
   Settings,
   StoppedPayload,
@@ -16,10 +18,12 @@ export const api = {
   getSessions: () => invoke<Session[]>("get_sessions"),
   resetPlaytime: (id: string, sec: number) =>
     invoke<Game>("reset_playtime", { id, sec }),
-  pickExe: () => invoke<string | null>("pick_exe"),
+  pickEntry: () => invoke<string | null>("pick_entry"),
   pickFolder: () => invoke<string | null>("pick_folder"),
   pickImage: (kind: "cover" | "background") =>
     invoke<string | null>("pick_image", { kind }),
+  scanFolder: (path: string) =>
+    invoke<ScanEntry[]>("scan_folder", { path }),
   importCover: (id: string, src: string) =>
     invoke<string>("import_cover", { id, src }),
   importBackground: (src: string) =>
@@ -30,6 +34,12 @@ export const api = {
   saveSettings: (settings: Settings) =>
     invoke<Settings>("save_settings", { settings }),
   openDataDir: () => invoke<void>("open_data_dir"),
+  backupSaves: (id: string) => invoke<SaveBackup>("backup_saves", { id }),
+  listSaveBackups: (id: string) =>
+    invoke<SaveBackup[]>("list_save_backups", { id }),
+  restoreSaveBackup: (id: string, file: string) =>
+    invoke<number>("restore_save_backup", { id, file }),
+  openBackupsDir: (id: string) => invoke<void>("open_backups_dir", { id }),
   exportLibrary: () => invoke<boolean>("export_library"),
   importLibrary: () => invoke<number>("import_library"),
 };

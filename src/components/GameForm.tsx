@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { EyeOff, FolderOpen, ImagePlus, Star, X } from "lucide-react";
+import { Archive, EyeOff, FolderOpen, ImagePlus, Star, X } from "lucide-react";
 import { dirFromPath, titleFromPath } from "../lib/format";
 import { api } from "../lib/ipc";
 import { collectCategories } from "../lib/library";
 import { useAssetUrl } from "../lib/useAssetUrl";
 import { useLibrary } from "../store/useLibrary";
-import { newGameDraft, type Game } from "../types";
+import { isProcessTarget, newGameDraft, type Game } from "../types";
 import { Modal } from "./Modal";
 
 export function GameForm() {
@@ -31,15 +31,32 @@ export function GameForm() {
   const patch = (part: Partial<Game>) => setDraft((d) => ({ ...d, ...part }));
   const suggestions = collectCategories(games, settings?.categories ?? []);
 
-  const pickExe = async () => {
-    const path = await api.pickExe();
-    if (!path) return;
+  const applyFileTarget = (path: string) => {
     setDraft((d) => ({
       ...d,
       exePath: path,
       title: d.title.trim() ? d.title : titleFromPath(path),
       workDir: d.workDir.trim() ? d.workDir : dirFromPath(path),
     }));
+  };
+
+  const applyFolderTarget = (dir: string) => {
+    const name = dir.split(/[\\/]/).filter(Boolean).pop() ?? dir;
+    setDraft((d) => ({
+      ...d,
+      exePath: dir,
+      title: d.title.trim() ? d.title : name,
+    }));
+  };
+
+  const pickTarget = async () => {
+    const path = await api.pickEntry();
+    if (path) applyFileTarget(path);
+  };
+
+  const pickTargetFolder = async () => {
+    const dir = await api.pickFolder();
+    if (dir) applyFolderTarget(dir);
   };
 
   const pickWorkDir = async () => {
@@ -58,6 +75,19 @@ export function GameForm() {
     }
   };
 
+  const addSavePath = async () => {
+    const dir = await api.pickFolder();
+    if (!dir) return;
+    setDraft((d) => ({ ...d, savePaths: [...d.savePaths, dir] }));
+  };
+
+  const removeSavePath = (index: number) => {
+    setDraft((d) => ({
+      ...d,
+      savePaths: d.savePaths.filter((_, i) => i !== index),
+    }));
+  };
+
   const splitList = (text: string) =>
     text
       .split(/[,，]/)
@@ -68,11 +98,11 @@ export function GameForm() {
     const title = draft.title.trim();
     const exePath = draft.exePath.trim();
     if (!title) {
-      showToast("error", "请填写游戏名称");
+      showToast("error", "请填写名称");
       return;
     }
     if (!exePath) {
-      showToast("error", "请选择游戏程序（exe）");
+      showToast("error", "请选择要加入的程序、文件或文件夹");
       return;
     }
     const game: Game = {
@@ -83,6 +113,7 @@ export function GameForm() {
       category: draft.category.trim(),
       tags: splitList(tagsText),
       extraProcessNames: splitList(extraText),
+      savePaths: draft.savePaths.map((p) => p.trim()).filter(Boolean),
     };
 
     setSaving(true);
@@ -90,7 +121,7 @@ export function GameForm() {
       await api.saveGame(game);
       const state = useLibrary.getState();
       state.closeForm();
-      state.showToast("success", isNew ? "游戏已添加" : "修改已保存");
+      state.showToast("success", isNew ? "已加入" : "修改已保存");
       await state.init();
       useLibrary.getState().select(game.id);
     } catch (err) {
@@ -100,14 +131,16 @@ export function GameForm() {
     }
   };
 
+  const processLike = isProcessTarget(draft.exePath);
+
   return (
-    <Modal onClose={closeForm} width={660}>
+    <Modal onClose={closeForm} width={680}>
       <div
         className="flex items-center justify-between border-b px-5 py-3.5"
         style={{ borderColor: "var(--border)" }}
       >
         <h3 className="m-0 text-[15px] font-semibold">
-          {isNew ? "添加游戏" : "编辑游戏"}
+          {isNew ? "加入新项目" : "编辑项目"}
         </h3>
         <button className="btn btn-ghost !p-1" onClick={closeForm} aria-label="关闭">
           <X size={16} />
@@ -146,41 +179,51 @@ export function GameForm() {
 
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
-            <label className="label">游戏名称 *</label>
+            <label className="label">名称 *</label>
             <input
               className="input"
               value={draft.title}
               onChange={(e) => patch({ title: e.target.value })}
-              placeholder="例如：星露谷物语"
+              placeholder="例如：星露谷物语 / 我的项目文件夹"
               autoFocus
             />
           </div>
 
           <div className="col-span-2">
-            <label className="label">游戏程序（exe）*</label>
+            <label className="label">程序 / 文件 / 文件夹 *（任何类型都可以）</label>
             <div className="flex gap-2">
               <input
                 className="input font-mono !text-[11px]"
                 value={draft.exePath}
                 onChange={(e) => patch({ exePath: e.target.value })}
-                placeholder="C:\Games\xxx\xxx.exe"
+                placeholder="C:\Games\xxx\xxx.exe 或 C:\Docs\笔记.pdf 或某个文件夹"
                 spellCheck={false}
               />
-              <button className="btn shrink-0" onClick={() => void pickExe()}>
+              <button className="btn shrink-0" onClick={() => void pickTarget()}>
                 <FolderOpen size={14} />
-                浏览
+                选择文件
+              </button>
+              <button className="btn shrink-0" onClick={() => void pickTargetFolder()}>
+                文件夹
               </button>
             </div>
+            <p className="hint mt-1">
+              {!draft.exePath
+                ? "exe / bat / cmd 会以进程启动并统计时长；快捷方式、文档、图片、文件夹用系统默认方式打开，只记录最近打开。"
+                : processLike
+                  ? "将以进程方式启动，自动统计游玩时长。"
+                  : "将用系统默认程序打开，不统计时长。"}
+            </p>
           </div>
 
           <div className="col-span-2">
-            <label className="label">工作目录</label>
+            <label className="label">工作目录（仅进程启动时生效）</label>
             <div className="flex gap-2">
               <input
                 className="input font-mono !text-[11px]"
                 value={draft.workDir}
                 onChange={(e) => patch({ workDir: e.target.value })}
-                placeholder="留空则使用 exe 所在目录"
+                placeholder="留空则使用程序所在目录"
                 spellCheck={false}
               />
               <button className="btn shrink-0" onClick={() => void pickWorkDir()}>
@@ -197,7 +240,7 @@ export function GameForm() {
               list="category-suggestions"
               value={draft.category}
               onChange={(e) => patch({ category: e.target.value })}
-              placeholder="动作 / 独立 / 休闲…"
+              placeholder="游戏 / 工具 / 独立…"
             />
             <datalist id="category-suggestions">
               {suggestions.map((c) => (
@@ -236,7 +279,49 @@ export function GameForm() {
               placeholder="游戏由启动器拉起时填写，例如 GameLauncher.exe"
             />
             <p className="hint mt-1">
-              用于应对「点了启动器才出现游戏本体」的情况：任一同名进程存在就算仍在游玩。
+              用于应对「点了启动器才出现游戏本体」的情况：任一同名进程存在就算仍在运行。
+            </p>
+          </div>
+
+          <div className="col-span-2">
+            <label className="label">
+              <span className="flex items-center gap-1.5">
+                <Archive size={12} />
+                存档目录（可多个，用于备份）
+              </span>
+            </label>
+            <div className="space-y-1.5">
+              {draft.savePaths.map((path, index) => (
+                <div className="flex gap-2" key={`${index}-${path}`}>
+                  <input
+                    className="input font-mono !text-[11px]"
+                    value={path}
+                    onChange={(e) =>
+                      setDraft((d) => ({
+                        ...d,
+                        savePaths: d.savePaths.map((p, i) =>
+                          i === index ? e.target.value : p,
+                        ),
+                      }))
+                    }
+                    placeholder="C:\Users\...\AppData\Roaming\Game\Saves"
+                    spellCheck={false}
+                  />
+                  <button
+                    className="btn shrink-0"
+                    onClick={() => removeSavePath(index)}
+                  >
+                    移除
+                  </button>
+                </div>
+              ))}
+              <button className="btn" onClick={() => void addSavePath()}>
+                <FolderOpen size={14} />
+                添加存档目录
+              </button>
+            </div>
+            <p className="hint mt-1">
+              加入后可在详情页一键打包备份，存档坏了能还原回来。
             </p>
           </div>
 
@@ -283,7 +368,7 @@ export function GameForm() {
           取消
         </button>
         <button className="btn btn-primary" onClick={() => void save()} disabled={saving}>
-          {saving ? "保存中…" : isNew ? "添加" : "保存"}
+          {saving ? "保存中…" : isNew ? "加入" : "保存"}
         </button>
       </div>
     </Modal>

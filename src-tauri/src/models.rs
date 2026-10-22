@@ -33,6 +33,9 @@ pub struct Game {
     pub last_played_at: Option<u64>,
     #[serde(default)]
     pub added_at: u64,
+    /// 需要备份的存档目录，可以多个。
+    #[serde(default)]
+    pub save_paths: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,8 +100,27 @@ pub struct Session {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LaunchResult {
-    pub pid: u32,
+    /// 以进程方式启动时的 PID；用系统默认方式打开时为 None。
+    pub pid: Option<u32>,
     pub started_at: u64,
+}
+
+/// 扫描目录后返回的候选程序。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanEntry {
+    pub path: String,
+    pub name: String,
+    pub size: u64,
+}
+
+/// 一次存档备份的元信息。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveBackup {
+    pub file: String,
+    pub created_at: u64,
+    pub size: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]

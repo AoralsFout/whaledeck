@@ -1,5 +1,8 @@
 use crate::launcher;
-use crate::models::{now_ms, Game, LaunchResult, Session, Settings, StoppedPayload};
+use crate::models::{
+    now_ms, Game, LaunchResult, SaveBackup, ScanEntry, Session, Settings, StoppedPayload,
+};
+use crate::savegame;
 use crate::store::Store;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -13,6 +16,9 @@ pub struct AppState {
     pub settings: Mutex<Settings>,
     pub sessions: Mutex<Vec<Session>>,
 }
+
+const SCAN_MAX_DEPTH: u32 = 6;
+const SCAN_MAX_FILES: usize = 500;
 
 fn lower_ext(src: &str) -> String {
     Path::new(src)
@@ -33,6 +39,17 @@ fn remove_old_assets(dir: &Path, prefix: &str, keep: Option<&str>) {
     }
 }
 
+fn find_game(state: &AppState, id: &str) -> Result<Game, String> {
+    state
+        .games
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|g| g.id == id)
+        .cloned()
+        .ok_or_else(|| "游戏记录不存在".to_string())
+}
+
 // ---------- 游戏库 ----------
 
 #[tauri::command]
@@ -43,7 +60,10 @@ pub fn list_games(state: State<'_, AppState>) -> Vec<Game> {
 #[tauri::command]
 pub fn save_game(state: State<'_, AppState>, mut game: Game) -> Result<Game, String> {
     if game.title.trim().is_empty() {
-        return Err("游戏名称不能为空".into());
+        return Err("名称不能为空".into());
+    }
+    if game.exe_path.trim().is_empty() {
+        return Err("请选择要加入的程序、文件或文件夹".into());
     }
     if game.id.trim().is_empty() {
         game.id = uuid::Uuid::new_v4().to_string();
@@ -51,6 +71,12 @@ pub fn save_game(state: State<'_, AppState>, mut game: Game) -> Result<Game, Str
     if game.added_at == 0 {
         game.added_at = now_ms();
     }
+    game.save_paths = game
+        .save_paths
+        .into_iter()
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty())
+        .collect();
     let mut games = state.games.lock().unwrap();
     match games.iter_mut().find(|g| g.id == game.id) {
         Some(existing) => *existing = game.clone(),
@@ -65,7 +91,7 @@ pub fn delete_game(state: State<'_, AppState>, id: String) -> Result<bool, Strin
     {
         let sessions = state.sessions.lock().unwrap();
         if sessions.iter().any(|s| s.game_id == id) {
-            return Err("游戏正在运行，请先退出游戏再删除记录".into());
+            return Err("正在运行中，请先退出再删除记录".into());
         }
     }
     let mut games = state.games.lock().unwrap();
@@ -86,22 +112,15 @@ pub fn launch_game(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<LaunchResult, String> {
-    let game = {
-        let games = state.games.lock().unwrap();
-        games
-            .iter()
-            .find(|g| g.id == id)
-            .cloned()
-            .ok_or_else(|| "游戏记录不存在".to_string())?
-    };
+    let game = find_game(&state, &id)?;
     {
         let sessions = state.sessions.lock().unwrap();
         if sessions.iter().any(|s| s.game_id == id) {
-            return Err("这个游戏已经在运行了".into());
+            return Err("这个项目已经在运行了".into());
         }
     }
 
-    let pid = launcher::spawn_game(&game).map_err(|message| {
+    let pid = launcher::spawn_entry(&game).map_err(|message| {
         let _ = app.emit(
             "launch-failed",
             serde_json::json!({ "gameId": id, "message": message }),
@@ -110,14 +129,17 @@ pub fn launch_game(
     })?;
 
     let started_at = now_ms();
-    let session = Session {
-        game_id: id.clone(),
-        pid,
-        started_at,
-        baseline_playtime: game.playtime_sec,
-    };
-    state.sessions.lock().unwrap().push(session.clone());
-    let _ = state.store.write_pending(&session);
+    if let Some(pid) = pid {
+        let session = Session {
+            game_id: id.clone(),
+            pid,
+            started_at,
+            baseline_playtime: game.playtime_sec,
+        };
+        state.sessions.lock().unwrap().push(session.clone());
+        let _ = state.store.write_pending(&session);
+        monitor_process(app.clone(), session, game);
+    }
 
     {
         let mut games = state.games.lock().unwrap();
@@ -127,7 +149,6 @@ pub fn launch_game(
         let _ = state.store.save_games(&games);
     }
 
-    monitor_process(app.clone(), session, game);
     Ok(LaunchResult { pid, started_at })
 }
 
@@ -203,14 +224,25 @@ pub fn reset_playtime(state: State<'_, AppState>, id: String, sec: u64) -> Resul
     Ok(snapshot)
 }
 
-// ---------- 文件选择与资源 ----------
+// ---------- 文件选择 ----------
 
+/// 选择任意文件（程序、快捷方式、文档、图片……）。
 #[tauri::command]
-pub fn pick_exe(app: AppHandle) -> Option<String> {
+pub fn pick_entry(app: AppHandle) -> Option<String> {
     app.dialog()
         .file()
-        .add_filter("可执行程序", &["exe"])
+        .set_title("选择要加入的程序或文件")
         .blocking_pick_file()
+        .and_then(|p| p.into_path().ok())
+        .map(|p| p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn pick_folder(app: AppHandle) -> Option<String> {
+    app.dialog()
+        .file()
+        .set_title("选择文件夹")
+        .blocking_pick_folder()
         .and_then(|p| p.into_path().ok())
         .map(|p| p.to_string_lossy().to_string())
 }
@@ -231,6 +263,68 @@ pub fn pick_image(app: AppHandle, kind: String) -> Option<String> {
         .map(|p| p.to_string_lossy().to_string())
 }
 
+// ---------- 文件夹扫描 ----------
+
+fn scan_walk(dir: &Path, depth: u32, out: &mut Vec<ScanEntry>) {
+    if depth > SCAN_MAX_DEPTH || out.len() >= SCAN_MAX_FILES {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut sub_dirs = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
+        }
+        if path.is_dir() {
+            const SKIP: &[&str] = &[
+                "node_modules",
+                "$Recycle.Bin",
+                "System Volume Information",
+                "Windows",
+                "AppData",
+                "ProgramData",
+            ];
+            if SKIP.iter().any(|s| s.eq_ignore_ascii_case(&name)) {
+                continue;
+            }
+            sub_dirs.push(path);
+        } else if path
+            .extension()
+            .map(|e| e.eq_ignore_ascii_case("exe"))
+            .unwrap_or(false)
+        {
+            let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+            out.push(ScanEntry {
+                path: path.to_string_lossy().to_string(),
+                name,
+                size,
+            });
+        }
+    }
+    for sub in sub_dirs {
+        scan_walk(&sub, depth + 1, out);
+    }
+}
+
+#[tauri::command]
+pub fn scan_folder(path: String) -> Result<Vec<ScanEntry>, String> {
+    let root = PathBuf::from(path.trim());
+    if !root.is_dir() {
+        return Err("请选择一个有效的文件夹".into());
+    }
+    let mut out = Vec::new();
+    scan_walk(&root, 0, &mut out);
+    out.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
+    out.truncate(SCAN_MAX_FILES);
+    Ok(out)
+}
+
+// ---------- 资源 ----------
+
 #[tauri::command]
 pub fn import_cover(state: State<'_, AppState>, id: String, src: String) -> Result<String, String> {
     let ext = lower_ext(&src);
@@ -240,16 +334,6 @@ pub fn import_cover(state: State<'_, AppState>, id: String, src: String) -> Resu
     std::fs::copy(&src, dir.join(&name)).map_err(|e| format!("复制封面失败：{e}"))?;
     remove_old_assets(&dir, &format!("{id}."), Some(&name));
     Ok(name)
-}
-
-#[tauri::command]
-pub fn pick_folder(app: AppHandle) -> Option<String> {
-    app.dialog()
-        .file()
-        .set_title("选择工作目录")
-        .blocking_pick_folder()
-        .and_then(|p| p.into_path().ok())
-        .map(|p| p.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -301,7 +385,41 @@ pub fn open_data_dir(state: State<'_, AppState>) -> Result<(), String> {
         .map_err(|e| format!("打开目录失败：{e}"))
 }
 
-// ---------- 备份与恢复 ----------
+// ---------- 存档备份 ----------
+
+#[tauri::command]
+pub fn backup_saves(state: State<'_, AppState>, id: String) -> Result<SaveBackup, String> {
+    let game = find_game(&state, &id)?;
+    savegame::backup(&state.store, &game)
+}
+
+#[tauri::command]
+pub fn list_save_backups(state: State<'_, AppState>, id: String) -> Vec<SaveBackup> {
+    savegame::list(&state.store, &id)
+}
+
+#[tauri::command]
+pub fn restore_save_backup(
+    state: State<'_, AppState>,
+    id: String,
+    file: String,
+) -> Result<usize, String> {
+    let game = find_game(&state, &id)?;
+    savegame::restore(&state.store, &game, &file)
+}
+
+#[tauri::command]
+pub fn open_backups_dir(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    let dir = state.store.game_backups_dir(&id);
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::process::Command::new("explorer")
+        .arg(dir)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("打开目录失败：{e}"))
+}
+
+// ---------- 整库备份与恢复 ----------
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -379,8 +497,8 @@ pub fn import_library(app: AppHandle, state: State<'_, AppState>) -> Result<usiz
     };
 
     let text = std::fs::read_to_string(&source).map_err(|e| format!("读取备份失败：{e}"))?;
-    let backup: BackupFile = serde_json::from_str(&text)
-        .map_err(|e| format!("备份格式不正确，无法解析：{e}"))?;
+    let backup: BackupFile =
+        serde_json::from_str(&text).map_err(|e| format!("备份格式不正确，无法解析：{e}"))?;
     let count = backup.games.len();
 
     let mut games = state.games.lock().unwrap();

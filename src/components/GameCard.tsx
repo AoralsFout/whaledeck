@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Clock, Heart, Play, Star } from "lucide-react";
+import { Clock, ExternalLink, Heart, Play, Star } from "lucide-react";
 import { formatPlaytime, formatRelative, formatTimer, titleFromPath } from "../lib/format";
 import { useAssetUrl } from "../lib/useAssetUrl";
 import { useLibrary } from "../store/useLibrary";
-import type { Game, Session } from "../types";
+import { isProcessTarget, type Game, type Session } from "../types";
 
 function CoverPlaceholder({ title }: { title: string }) {
   const letter = (title || "?").trim().charAt(0).toUpperCase();
@@ -47,6 +47,7 @@ export function GameCard({ game, running }: Props) {
   }, [running]);
 
   const active = selectedId === game.id;
+  const openLike = !isProcessTarget(game.exePath);
 
   return (
     <div
@@ -111,10 +112,10 @@ export function GameCard({ game, running }: Props) {
               e.stopPropagation();
               void launch(game.id);
             }}
-            title="启动游戏"
+            title={openLike ? "用默认程序打开" : "启动游戏"}
           >
-            <Play size={12} fill="currentColor" />
-            启动
+            {openLike ? <ExternalLink size={12} /> : <Play size={12} fill="currentColor" />}
+            {openLike ? "打开" : "启动"}
           </button>
         </div>
       </div>
@@ -126,7 +127,7 @@ export function GameCard({ game, running }: Props) {
         <div className="mt-1 flex items-center justify-between text-[11px]" style={{ color: "var(--text-dim)" }}>
           <span className="flex items-center gap-1">
             <Clock size={10} />
-            {formatPlaytime(game.playtimeSec)}
+            {openLike ? "打开" : formatPlaytime(game.playtimeSec)}
           </span>
           <span>{formatRelative(game.lastPlayedAt)}</span>
         </div>

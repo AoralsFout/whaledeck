@@ -14,6 +14,8 @@ export type Game = {
   playtimeSec: number;
   lastPlayedAt: number | null;
   addedAt: number;
+  /** 需要备份的存档目录，可以多个 */
+  savePaths: string[];
 };
 
 export type ThemePreset = "whale" | "abyss" | "sakura" | "mono";
@@ -43,7 +45,8 @@ export type Session = {
 };
 
 export type LaunchResult = {
-  pid: number;
+  /** 以进程方式启动时的 PID；用系统默认方式打开时为 null */
+  pid: number | null;
   startedAt: number;
 };
 
@@ -51,6 +54,18 @@ export type StoppedPayload = {
   gameId: string;
   sessionSec: number;
   playtimeSec: number;
+};
+
+export type ScanEntry = {
+  path: string;
+  name: string;
+  size: number;
+};
+
+export type SaveBackup = {
+  file: string;
+  createdAt: number;
+  size: number;
 };
 
 export type NavKey =
@@ -76,5 +91,12 @@ export function newGameDraft(): Game {
     playtimeSec: 0,
     lastPlayedAt: null,
     addedAt: 0,
+    savePaths: [],
   };
+}
+
+/** 判断是否按进程启动（可计时） */
+export function isProcessTarget(path: string): boolean {
+  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  return ["exe", "bat", "cmd", "com"].includes(ext) && path.includes(".");
 }

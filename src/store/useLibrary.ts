@@ -26,6 +26,7 @@ type LibraryState = {
   formOpen: boolean;
   editing: Game | null;
   settingsOpen: boolean;
+  scanOpen: boolean;
   toast: Toast | null;
 
   init: () => Promise<void>;
@@ -44,6 +45,8 @@ type LibraryState = {
   updateSettings: (next: Settings) => Promise<void>;
   openSettings: () => void;
   closeSettings: () => void;
+  openScan: () => void;
+  closeScan: () => void;
   showToast: (kind: ToastKind, text: string) => void;
   hideToast: () => void;
   handleStopped: (p: StoppedPayload) => void;
@@ -65,6 +68,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   formOpen: false,
   editing: null,
   settingsOpen: false,
+  scanOpen: false,
   toast: null,
 
   init: async () => {
@@ -153,18 +157,28 @@ export const useLibrary = create<LibraryState>((set, get) => ({
     if (!game) return;
     try {
       const result = await api.launchGame(id);
-      const session: Session = {
-        gameId: id,
-        pid: result.pid,
-        startedAt: result.startedAt,
-        baselinePlaytime: game.playtimeSec,
-      };
-      set((s) => ({
-        sessions: [...s.sessions.filter((x) => x.gameId !== id), session],
-        games: s.games.map((g) =>
+      set((s) => {
+        const games = s.games.map((g) =>
           g.id === id ? { ...g, lastPlayedAt: result.startedAt } : g,
-        ),
-      }));
+        );
+        if (result.pid === null) {
+          // 非 exe：用系统默认程序打开，不产生计时会话
+          return { games, sessions: s.sessions };
+        }
+        const session: Session = {
+          gameId: id,
+          pid: result.pid,
+          startedAt: result.startedAt,
+          baselinePlaytime: game.playtimeSec,
+        };
+        return {
+          games,
+          sessions: [...s.sessions.filter((x) => x.gameId !== id), session],
+        };
+      });
+      if (result.pid === null) {
+        get().showToast("info", "已用系统默认程序打开");
+      }
     } catch (err) {
       get().showToast("error", String(err));
     }
@@ -194,6 +208,8 @@ export const useLibrary = create<LibraryState>((set, get) => ({
 
   openSettings: () => set({ settingsOpen: true }),
   closeSettings: () => set({ settingsOpen: false }),
+  openScan: () => set({ scanOpen: true }),
+  closeScan: () => set({ scanOpen: false }),
 
   showToast: (kind, text) => {
     if (toastTimer) clearTimeout(toastTimer);

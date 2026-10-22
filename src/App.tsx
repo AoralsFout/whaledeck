@@ -9,6 +9,7 @@ import { GameDetail } from "./components/GameDetail";
 import { GameForm } from "./components/GameForm";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Toast } from "./components/Toast";
+import { ScanDialog } from "./components/ScanDialog";
 
 export default function App() {
   const ready = useLibrary((s) => s.ready);
@@ -16,6 +17,7 @@ export default function App() {
   const selectedId = useLibrary((s) => s.selectedId);
   const formOpen = useLibrary((s) => s.formOpen);
   const settingsOpen = useLibrary((s) => s.settingsOpen);
+  const scanOpen = useLibrary((s) => s.scanOpen);
   const init = useLibrary((s) => s.init);
 
   useEffect(() => {
@@ -91,6 +93,7 @@ export default function App() {
       {selectedId && <GameDetail />}
       {formOpen && <GameForm />}
       {settingsOpen && <SettingsPanel />}
+      {scanOpen && <ScanDialog />}
       <Toast />
     </div>
   );
