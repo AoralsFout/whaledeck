@@ -17,3 +17,6 @@ Thumbs.db
 
 # Tauri 本地签名密钥（如有）
 *.pem
+
+# 本地发布的安装包 / 便携版
+release/

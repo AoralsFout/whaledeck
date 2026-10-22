@@ -27,6 +27,23 @@ WhaleDeck 是一个 Windows 桌面应用（Tauri 2 + React 19 + TypeScript）：
 - 主区：自适应卡片网格
 - 右侧：详情抽屉（启动、编辑、修正时长、存档备份、移除）
 
+## 安装与排障
+
+- 安装包：`WhaleDeck_0.2.0_x64-setup.exe`（NSIS，按当前用户安装，无需管理员权限）。
+- 免安装：`release/WhaleDeck-0.2.0-portable.zip`，解压双击 `WhaleDeck.exe` 即可。
+
+**安装时提示「无法打开写入文件」？**
+
+安装程序会记住上一次选择的安装目录。如果之前选过一个没有写权限的目录（例如 `D:\xin\`），再次安装就会往那里写并失败。处理方式：
+
+1. 删除旧安装记录：
+   ```powershell
+   Remove-Item "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\WhaleDeck" -Recurse
+   ```
+2. 重新运行安装包，在「安装位置」一步保持默认（`%LOCALAPPDATA%\WhaleDeck`）或改成自己有写权限的目录。
+
+不想折腾的话直接用上面的便携版。
+
 ## 开发
 
 前置要求：Node.js 20+、pnpm、Rust（MSVC 工具链）、WebView2（Windows 10/11 自带）。
