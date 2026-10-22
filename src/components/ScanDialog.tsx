@@ -1,3 +1,9 @@
+/**
+ * @file 文件夹扫描对话框：选择目录、展示 exe 候选、批量加入与部分失败重试。
+ *
+ * 已在库中的路径置灰；加入期间保持扫描结果稳定，失败项保留勾选。
+ * 对应文档：docs/前端实现.md「批量加入」、docs/界面与交互.md §5。
+ */
 import { useMemo, useState } from "react";
 import { CheckSquare, FolderSearch, Loader2, Square, X } from "lucide-react";
 import { formatBytes } from "../lib/format";
@@ -7,6 +13,7 @@ import { useLibrary } from "../store/useLibrary";
 import type { ScanEntry } from "../types";
 import { Modal } from "./Modal";
 
+/** 扫描对话框；existing 用路径键判断是否已在库，fresh 才是可勾选候选。 */
 export function ScanDialog() {
   const close = useLibrary((s) => s.closeScan);
   const games = useLibrary((s) => s.games);
@@ -26,6 +33,7 @@ export function ScanDialog() {
   const fresh = entries.filter((e) => !existing.has(gamePathKey(e.path)));
   const selectedCount = fresh.filter((entry) => selected.has(entry.path)).length;
 
+  // 扫描结果整体替换；已存在的路径不参与默认勾选。
   const runScan = async (dir: string) => {
     setScanning(true);
     try {

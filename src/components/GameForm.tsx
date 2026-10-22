@@ -1,3 +1,9 @@
+/**
+ * @file 新增 / 编辑项目对话框：目标、封面、分类、标签、启动参数与存档目录。
+ *
+ * 草稿只存在于组件内；保存交给 useLibrary.saveGame，成功后才关闭。
+ * 对应文档：docs/前端实现.md §3.2、docs/界面与交互.md §4.2。
+ */
 import { useState } from "react";
 import { Archive, EyeOff, FolderOpen, ImagePlus, Star, X } from "lucide-react";
 import { dirFromPath, titleFromPath } from "../lib/format";
@@ -8,6 +14,7 @@ import { useLibrary } from "../store/useLibrary";
 import { isProcessTarget, newGameDraft, type Game } from "../types";
 import { Modal } from "./Modal";
 
+/** 编辑/新增表单；新记录在打开时就生成 id，便于立即按 id 保存封面。 */
 export function GameForm() {
   const editing = useLibrary((s) => s.editing);
   const games = useLibrary((s) => s.games);

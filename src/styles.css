@@ -1,3 +1,10 @@
+/*
+ * 全局样式与主题令牌。
+ *
+ * 结构：根变量/明暗模式 → 窗口外壳 → 基础组件（按钮/输入/chip/提示）
+ * → 侧栏与详情 → 对话框与设置 → 响应式与减少动态效果。
+ * 对应文档：docs/界面与交互.md「视觉令牌」「组件规范」「响应式」。
+ */
 @import "tailwindcss";
 
 :root {
@@ -169,6 +176,11 @@ body {
   opacity: var(--bg-dim);
   pointer-events: none;
   transition: opacity 0.25s ease;
+}
+
+/* Apply the saved background dimming immediately while preparing the first frame. */
+:root[data-starting="true"] #root::after {
+  transition: none;
 }
 
 ::-webkit-scrollbar {

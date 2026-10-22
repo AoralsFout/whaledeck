@@ -1,3 +1,9 @@
+/**
+ * @file 详情操作栏提示：首次延迟、探索期快速显示、键盘聚焦立即显示与收起。
+ *
+ * 提示通过 portal 渲染，动态挂 aria-describedby；不叠加原生 title。
+ * 对应文档：docs/界面与交互.md §4.5。
+ */
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
@@ -12,6 +18,7 @@ function findTrigger(target: EventTarget | null) {
 }
 
 /** One warm-up period for the action row; the buttons keep their native layout. */
+/** 操作栏提示容器；子按钮用 data-tooltip 提供文案，布局保持不变。 */
 export function ActionTooltips({ children, className }: { children: ReactNode; className: string }) {
   const id = useId();
   const [active, setActive] = useState<ActiveTooltip | null>(null);

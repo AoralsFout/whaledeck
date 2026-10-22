@@ -1,3 +1,9 @@
+/**
+ * @file 联网补全对话框：选择数据源、搜索、应用元数据或手动选封面。
+ *
+ * 检索状态放在 createMetaSearch 的独立 store 中，关闭弹窗即让旧请求失效。
+ * 对应文档：docs/系统架构.md §5.3、docs/前端实现.md §2.3。
+ */
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { CloudDownload, ImagePlus, Loader2, Search, X } from "lucide-react";
@@ -13,10 +19,12 @@ const SOURCES: { key: MetaSource; label: string; blurb: string }[] = [
   { key: "ymgal", label: "月幕", blurb: "Galgame 档案" },
 ];
 
+/** 来源 key → 界面显示名；未知来源原样返回，避免空标签。 */
 function sourceName(source: string): string {
   return SOURCES.find((s) => s.key === source)?.label ?? source;
 }
 
+/** 联网补全弹窗；无结果时保留手动选封面入口。 */
 export function MetaDialog() {
   const close = useLibrary((s) => s.closeMeta);
   const game = useLibrary((s) => s.games.find((g) => g.id === s.selectedId) ?? null);

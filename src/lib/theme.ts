@@ -1,3 +1,9 @@
+/**
+ * @file 主题：预设色板、颜色解析与 CSS 变量写入。
+ *
+ * 只负责把 Theme 映射为根元素变量；持久化由 store/SettingsPanel 负责。
+ * 对应文档：docs/界面与交互.md「视觉令牌」、docs/前端实现.md「主题」。
+ */
 import type { Theme, ThemePreset } from "../types";
 
 export const PRESETS: Record<
@@ -10,6 +16,7 @@ export const PRESETS: Record<
   mono: { name: "极简", primary: "#c7d2fe", accent: "#94a3b8", blurb: "低饱和灰蓝" },
 };
 
+/** 解析 #rgb / #rrggbb；非法值回退到默认鲸鱼青，避免整页颜色失效。 */
 export function hexToRgb(hex: string): [number, number, number] {
   const clean = hex.replace("#", "");
   const full =

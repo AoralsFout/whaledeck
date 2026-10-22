@@ -1,7 +1,15 @@
-import { useEffect, useState } from "react";
+/**
+ * @file 应用外壳：初始化游戏库、订阅后端事件、同步选中项、应用主题并显示窗口。
+ *
+ * 负责「跨组件的一次性生命周期」，不承载具体业务表单逻辑。
+ * 对应文档：docs/前端实现.md「状态分层」「启动、主题与资源」。
+ */
+import { useEffect, useLayoutEffect, useState } from "react";
 import { Menu } from "lucide-react";
-import { api, fileUrl, onGameStopped, onLaunchFailed } from "./lib/ipc";
+import { onGameStopped, onLaunchFailed } from "./lib/ipc";
 import { applyTheme } from "./lib/theme";
+import { useAssetUrl } from "./lib/useAssetUrl";
+import { showWindowWhenReady } from "./lib/startup";
 import { useLibrary } from "./store/useLibrary";
 import { useLibraryView } from "./store/useLibraryView";
 import { Sidebar } from "./components/Sidebar";
@@ -14,9 +22,15 @@ import { EmptyState } from "./components/EmptyState";
 import { Toast } from "./components/Toast";
 import { WindowChrome } from "./components/WindowChrome";
 
+/**
+ * 应用根组件：加载库 → 派生选中项 → 应用主题 → 首帧后显示窗口。
+ *
+ * 异步事件通过 store 的 getState() 分发，避免把订阅绑到某次渲染的闭包。
+ */
 export default function App() {
   const ready = useLibrary((s) => s.ready);
   const settings = useLibrary((s) => s.settings);
+  const background = useAssetUrl("background", settings?.theme.backgroundFile);
   const { selected } = useLibraryView();
   const gameCount = useLibrary((s) => s.games.length);
   const [navigationOpen, setNavigationOpen] = useState(false);
@@ -53,28 +67,15 @@ export default function App() {
   }, [ready, selected?.id, selectedId, select]);
 
   // 主题应用 + 背景图
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!settings) return;
     applyTheme(settings.theme);
-    const root = document.documentElement;
-    const file = settings.theme.backgroundFile;
-    if (!file) {
-      root.style.setProperty("--bg-image", "none");
-      return;
-    }
-    let alive = true;
-    api
-      .assetPath("background", file)
-      .then((abs) => {
-        if (alive) {
-          root.style.setProperty("--bg-image", `url("${fileUrl(abs)}")`);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [settings]);
+    document.documentElement.style.setProperty("--bg-image", background ? `url("${background}")` : "none");
+  }, [settings, background]);
+
+  useEffect(() => {
+    if (ready) return showWindowWhenReady();
+  }, [ready]);
 
   // 跟随系统主题变化
   useEffect(() => {

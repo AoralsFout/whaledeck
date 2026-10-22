@@ -1,5 +1,11 @@
+/**
+ * @file 资源 Hook：把数据目录中的文件名解析成可展示 URL。
+ *
+ * 用 {kind, file, url} 三元组校验，防止切换游戏时旧图片的异步结果覆盖新图片。
+ * 对应文档：docs/前端实现.md「资源」。
+ */
 import { useEffect, useState } from "react";
-import { api, fileUrl } from "./ipc";
+import { loadAssetUrl } from "./assets";
 
 /** 把数据目录里的封面/背景文件名解析成可展示的 asset URL */
 export function useAssetUrl(
@@ -14,14 +20,9 @@ export function useAssetUrl(
       setAsset(null);
       return;
     }
-    api
-      .assetPath(kind, file)
-      .then((abs) => {
-        if (alive) setAsset({ kind, file, url: fileUrl(abs) });
-      })
-      .catch(() => {
-        if (alive) setAsset(null);
-      });
+    void loadAssetUrl(kind, file).then((url) => {
+      if (alive) setAsset(url ? { kind, file, url } : null);
+    });
     return () => {
       alive = false;
     };

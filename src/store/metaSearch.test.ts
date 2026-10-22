@@ -1,3 +1,8 @@
+/**
+ * @file 联网检索状态机的测试：请求乱序、来源切换、关闭失效与空白关键词。
+ *
+ * 对应文档：docs/前端实现.md §2.3、§6。
+ */
 import { describe, expect, it, vi } from "vitest";
 import type { MetaItem, MetaSource } from "../types";
 import { createMetaSearch } from "./metaSearch";

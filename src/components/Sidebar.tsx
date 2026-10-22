@@ -1,3 +1,9 @@
+/**
+ * @file 左侧游戏库：品牌、搜索、筛选 chips、排序、工具按钮与游戏列表。
+ *
+ * 列表只消费派生的可见项；选中/启动通过全局 store，不在这里改持久化数据。
+ * 对应文档：docs/界面与交互.md「布局」「列表项」、docs/前端实现.md §3。
+ */
 import { ArrowDownWideNarrow, ArrowLeft, FolderSearch, Plus, Search, Settings, Star, X } from "lucide-react";
 import { formatPlaytime, formatRelative } from "../lib/format";
 import { collectCategories } from "../lib/library";
@@ -13,6 +19,7 @@ const SORTS: { value: SortKey; label: string }[] = [
   { value: "added", label: "添加时间" },
 ];
 
+/** 列表缩略图：优先程序图标，其次封面，都没有时用首字母渐变占位。 */
 function Thumb({ game }: { game: Game }) {
   const icon = useAssetUrl("icon", game.iconFile);
   const cover = useAssetUrl("cover", game.coverFile);
@@ -40,6 +47,7 @@ function Thumb({ game }: { game: Game }) {
   );
 }
 
+/** 侧栏；窄屏点击列表项后由 onNavigate 关闭覆盖层。 */
 export function Sidebar({ onNavigate }: { onNavigate: () => void }) {
   const games = useLibrary((s) => s.games);
   const settings = useLibrary((s) => s.settings);

@@ -1,3 +1,9 @@
+/**
+ * @file 对话框基础组件：原生 <dialog>、焦点约束、Escape、遮罩关闭与焦点返回。
+ *
+ * 遮罩关闭要求同一次主指针在外部按下并在面板外抬起，避免拖选文本时误关。
+ * 对应文档：docs/界面与交互.md §4.3、docs/前端实现.md §3.3。
+ */
 import { useEffect, useRef, type ReactNode } from "react";
 
 type Props = {
@@ -7,6 +13,7 @@ type Props = {
   title: string;
 };
 
+/** 原生 dialog 封装；挂载即 showModal，卸载关闭并把焦点还给触发元素。 */
 export function Modal({ children, onClose, width = 560, title }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);

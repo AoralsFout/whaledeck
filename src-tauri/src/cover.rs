@@ -1,3 +1,7 @@
+//! 封面与图标：本地图片评分扫描、Windows Shell 图标提取与 PNG 编码。
+//!
+//! 封面（covers/）与图标（icons/）严格分开；图标不冒充封面。
+//! 对应文档：docs/后端实现.md §8、docs/数据模型.md §2.1。
 use std::path::{Path, PathBuf};
 
 use windows_sys::Win32::Graphics::Gdi::{
@@ -10,8 +14,18 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{DestroyIcon, GetIconInfo, ICON
 const IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "bmp"];
 
 const STRONG_NAMES: &[&str] = &[
-    "cover", "header", "capsule", "poster", "banner", "artwork", "keyart", "key_art", "boxart",
-    "box_art", "封面", "封面图",
+    "cover",
+    "header",
+    "capsule",
+    "poster",
+    "banner",
+    "artwork",
+    "keyart",
+    "key_art",
+    "boxart",
+    "box_art",
+    "封面",
+    "封面图",
 ];
 const WEAK_NAMES: &[&str] = &["logo", "icon", "title", "tile"];
 const BAD_NAMES: &[&str] = &["screenshot", "screen", "thumb", "preview", "capture"];
@@ -146,7 +160,9 @@ fn to_wide(text: &str) -> Vec<u16> {
         .collect()
 }
 
-unsafe fn hicon_to_rgba(hicon: windows_sys::Win32::UI::WindowsAndMessaging::HICON) -> Result<(Vec<u8>, u32, u32), String> {
+unsafe fn hicon_to_rgba(
+    hicon: windows_sys::Win32::UI::WindowsAndMessaging::HICON,
+) -> Result<(Vec<u8>, u32, u32), String> {
     let mut info: ICONINFO = std::mem::zeroed();
     if GetIconInfo(hicon, &mut info) == 0 {
         return Err("读取图标信息失败".into());
@@ -232,6 +248,7 @@ pub fn shell_icon_png(target: &str) -> Result<(Vec<u8>, u32, u32), String> {
     rgba
 }
 
+/// RGBA 字节 → PNG；只用于系统图标的小图，尺寸由调用方保证。
 pub fn encode_png(rgba: &[u8], width: u32, height: u32) -> Result<Vec<u8>, String> {
     let mut out = Vec::new();
     {

@@ -1,3 +1,8 @@
+/**
+ * @file 存档备份生命周期的测试：乱序读取、备份后刷新、互斥与还原确认。
+ *
+ * 对应文档：docs/前端实现.md §2.3、§6。
+ */
 import { describe, expect, it, vi } from "vitest";
 import type { SaveBackup } from "../types";
 import { createSaveBackups } from "./saveBackups";

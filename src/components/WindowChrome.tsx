@@ -1,3 +1,9 @@
+/**
+ * @file 无边框窗口的拖动区与最小化/最大化/关闭控制。
+ *
+ * 非 Tauri（浏览器预览）不调用原生 API；最大化/全屏时同步 data-window-expanded。
+ * 对应文档：docs/界面与交互.md §2.1、docs/前端实现.md §4.4。
+ */
 import { useEffect, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -7,6 +13,7 @@ import { useLibrary } from "../store/useLibrary";
 // 浏览器预览不调用原生窗口 API。
 const appWindow = isTauri() ? getCurrentWindow() : null;
 
+/** 窗口控制条；只在 Tauri 环境可用，浏览器预览显示为禁用。 */
 export function WindowChrome() {
   const [maximized, setMaximized] = useState(false);
 

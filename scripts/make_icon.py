@@ -1,3 +1,8 @@
+"""生成应用图标源图（assets/icon-source.png）。
+
+开发期一次性脚本，不参与运行时；输出 1024×1024 PNG，供 Tauri 图标生成使用。
+对应文档：docs/工程规范.md「环境与命令」。
+"""
 from PIL import Image, ImageDraw, ImageFilter
 
 S = 1024

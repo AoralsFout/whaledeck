@@ -1,3 +1,8 @@
+/**
+ * @file 视图规则的测试：过滤、排序、选择回落与分类合并。
+ *
+ * 对应文档：docs/前端实现.md §2.2、§6。
+ */
 import { describe, expect, it } from "vitest";
 import type { Game } from "../types";
 import { collectCategories, countByCategory, filterGames, getLibraryView, sortGames } from "./library";

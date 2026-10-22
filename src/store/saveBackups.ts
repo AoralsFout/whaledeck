@@ -1,3 +1,9 @@
+/**
+ * @file 单个游戏的存档备份状态：列表、备份、还原确认、互斥与生命周期。
+ *
+ * 详情页按游戏挂载，卸载后所有迟到响应被丢弃；备份与还原共享忙碌状态。
+ * 对应文档：docs/前端实现.md「对话框级 store」、docs/界面与交互.md §5。
+ */
 import { createStore } from "zustand/vanilla";
 import { formatBytes } from "../lib/format";
 import type { SaveBackup } from "../types";
@@ -29,6 +35,7 @@ export function createSaveBackups(gameId: string, dependencies: SaveBackupsDepen
   const current = (scope: number) => connected && scope === lifetime;
 
   return createStore<SaveBackupsState>((set, get) => {
+    // 只接受最新一次列表读取，避免初始读取晚返回覆盖备份后的新列表。
     const refresh = async (scope: number) => {
       const request = ++listRequest;
       try {

@@ -1,3 +1,7 @@
+//! 存档备份：把多个存档目录打包为 zip、列出备份、按 manifest 安全还原。
+//!
+//! zip 根部的 manifest.json 记录原始目录；还原拒绝路径穿越并要求二次确认（前端）。
+//! 对应文档：docs/数据模型.md §4.5、docs/后端实现.md §10。
 use crate::models::{now_ms, Game, SaveBackup};
 use crate::store::Store;
 use serde::{Deserialize, Serialize};
@@ -32,8 +36,8 @@ fn add_dir(
         if path.is_dir() {
             add_dir(writer, &path, &inner, out_count)?;
         } else if path.is_file() {
-            let mut file = File::open(&path)
-                .map_err(|e| format!("读取文件 {} 失败：{e}", path.display()))?;
+            let mut file =
+                File::open(&path).map_err(|e| format!("读取文件 {} 失败：{e}", path.display()))?;
             writer
                 .start_file(inner, options())
                 .map_err(|e| format!("写入压缩包失败：{e}"))?;
@@ -75,7 +79,11 @@ pub fn backup(store: &Store, game: &Game) -> Result<SaveBackup, String> {
         .start_file("manifest.json", options())
         .map_err(|e| e.to_string())?;
     writer
-        .write_all(serde_json::to_vec_pretty(&manifest).map_err(|e| e.to_string())?.as_slice())
+        .write_all(
+            serde_json::to_vec_pretty(&manifest)
+                .map_err(|e| e.to_string())?
+                .as_slice(),
+        )
         .map_err(|e| e.to_string())?;
 
     for (index, source) in sources.iter().enumerate() {
@@ -102,6 +110,7 @@ pub fn backup(store: &Store, game: &Game) -> Result<SaveBackup, String> {
 }
 
 /// 列出某游戏的全部备份，按时间倒序。
+/// 只接受「纯数字 + .zip」的备份文件，按生成时间倒序；无目录时返回空列表。
 pub fn list(store: &Store, game_id: &str) -> Vec<SaveBackup> {
     let dir = store.game_backups_dir(game_id);
     let mut out = Vec::new();
@@ -125,10 +134,11 @@ pub fn list(store: &Store, game_id: &str) -> Vec<SaveBackup> {
             });
         }
     }
-    out.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    out.sort_by_key(|b| std::cmp::Reverse(b.created_at));
     out
 }
 
+/// 还原路径必须是非空相对路径：拒绝 `..`、盘符/ADS 冒号、绝对路径与 UNC。
 fn safe_relative(rel: &str) -> bool {
     !rel.is_empty()
         && !rel.contains("..")
@@ -186,8 +196,8 @@ pub fn restore(store: &Store, game: &Game, file: &str) -> Result<usize, String> 
         if let Some(parent) = dest.parent() {
             fs::create_dir_all(parent).map_err(|e| format!("创建目录失败：{e}"))?;
         }
-        let mut out = File::create(&dest)
-            .map_err(|e| format!("写入 {} 失败：{e}", dest.display()))?;
+        let mut out =
+            File::create(&dest).map_err(|e| format!("写入 {} 失败：{e}", dest.display()))?;
         std::io::copy(&mut entry, &mut out).map_err(|e| format!("写入失败：{e}"))?;
         written += 1;
     }
