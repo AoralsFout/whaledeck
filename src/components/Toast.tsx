@@ -11,6 +11,7 @@ const STYLE = {
 export function Toast() {
   const toast = useLibrary((s) => s.toast);
   const hide = useLibrary((s) => s.hideToast);
+  const dialogOpen = useLibrary((s) => s.formOpen || s.settingsOpen || s.scanOpen || s.metaOpen);
   if (!toast) return null;
 
   const conf = STYLE[toast.kind];
@@ -39,6 +40,6 @@ export function Toast() {
         </button>
       </div>
     </div>,
-    document.querySelector("dialog[open]") ?? document.getElementById("root")!,
+    (dialogOpen ? document.querySelector("dialog[open]") : null) ?? document.getElementById("root")!,
   );
 }

@@ -1,5 +1,10 @@
 import type { Game, NavKey, SortKey } from "../types";
 
+/** Windows 目标路径在扫描去重和写入重试时使用同一比较规则。 */
+export function gamePathKey(path: string): string {
+  return path.trim().replaceAll("/", "\\").toLowerCase();
+}
+
 /** 应用导航与搜索过滤 */
 export function filterGames(games: Game[], nav: NavKey, query: string): Game[] {
   const q = query.trim().toLowerCase();

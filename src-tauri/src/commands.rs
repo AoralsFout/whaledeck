@@ -60,7 +60,11 @@ pub fn list_games(state: State<'_, AppState>) -> Vec<Game> {
 }
 
 #[tauri::command]
-pub fn save_game(state: State<'_, AppState>, mut game: Game) -> Result<Game, String> {
+pub fn save_game(state: State<'_, AppState>, game: Game) -> Result<Game, String> {
+    save_game_record(state.inner(), game)
+}
+
+fn save_game_record(state: &AppState, mut game: Game) -> Result<Game, String> {
     if game.title.trim().is_empty() {
         return Err("名称不能为空".into());
     }
@@ -80,11 +84,13 @@ pub fn save_game(state: State<'_, AppState>, mut game: Game) -> Result<Game, Str
         .filter(|p| !p.is_empty())
         .collect();
     let mut games = state.games.lock().unwrap();
-    match games.iter_mut().find(|g| g.id == game.id) {
+    let mut next = games.clone();
+    match next.iter_mut().find(|g| g.id == game.id) {
         Some(existing) => *existing = game.clone(),
-        None => games.push(game.clone()),
+        None => next.push(game.clone()),
     }
-    state.store.save_games(&games)?;
+    state.store.save_games(&next)?;
+    *games = next;
     Ok(game)
 }
 
@@ -682,4 +688,56 @@ pub fn autofill(state: State<'_, AppState>, game_id: String) -> Result<AutofillR
         cover_detail,
         filled,
     })
+}
+
+#[cfg(test)]
+mod game_write_tests {
+    use super::*;
+
+    fn game(id: &str, title: &str) -> Game {
+        serde_json::from_value(serde_json::json!({
+            "id": id, "title": title, "exePath": format!("C:\\Games\\{id}.exe"),
+        }))
+        .unwrap()
+    }
+
+    fn state(root: PathBuf, games: Vec<Game>) -> AppState {
+        AppState {
+            store: Store::new(root),
+            games: Mutex::new(games),
+            settings: Mutex::new(Settings::default()),
+            sessions: Mutex::new(vec![]),
+        }
+    }
+
+    #[test]
+    fn failed_insert_does_not_change_memory_and_can_retry() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state(dir.path().to_path_buf(), vec![game("a", "已有游戏")]);
+        state.store.save_games(&state.games.lock().unwrap()).unwrap();
+        let blocked = state.store.games_path().with_extension("json.tmp");
+        std::fs::create_dir(&blocked).unwrap();
+
+        assert!(save_game_record(&state, game("b", "待加入游戏")).is_err());
+        assert_eq!(state.games.lock().unwrap().len(), 1);
+        assert_eq!(state.store.load_games().len(), 1);
+
+        std::fs::remove_dir(&blocked).unwrap();
+        save_game_record(&state, game("b", "待加入游戏")).unwrap();
+        assert_eq!(state.games.lock().unwrap().len(), 2);
+        assert_eq!(state.store.load_games().len(), 2);
+    }
+
+    #[test]
+    fn failed_update_preserves_original_memory_and_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state(dir.path().to_path_buf(), vec![game("a", "原名称")]);
+        state.store.save_games(&state.games.lock().unwrap()).unwrap();
+        let blocked = state.store.games_path().with_extension("json.tmp");
+        std::fs::create_dir(&blocked).unwrap();
+
+        assert!(save_game_record(&state, game("a", "新名称")).is_err());
+        assert_eq!(state.games.lock().unwrap()[0].title, "原名称");
+        assert_eq!(state.store.load_games()[0].title, "原名称");
+    }
 }

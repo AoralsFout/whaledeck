@@ -1,14 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../lib/ipc";
-import { newGameDraft } from "../types";
+import { newGameDraft, type ScanEntry } from "../types";
 import { useLibrary } from "./useLibrary";
 
 vi.mock("../lib/ipc", () => ({ api: { saveGame: vi.fn() } }));
 
+const entries: ScanEntry[] = ["A", "B", "C"].map((name) => ({
+  name: `${name}.exe`, path: `C:\\Games\\${name}.exe`, size: 1024,
+}));
+
 describe("游戏写入", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    useLibrary.setState({ games: [], selectedId: null, nav: { type: "all" }, query: "", formOpen: true, busy: false });
+    useLibrary.setState({ ...useLibrary.getInitialState(), formOpen: true, scanOpen: true });
   });
   afterEach(() => {
     useLibrary.getState().hideToast();
@@ -40,5 +44,123 @@ describe("游戏写入", () => {
     await useLibrary.getState().saveGame(draft);
     expect(useLibrary.getState()).toMatchObject({ games: [], formOpen: true, editing: draft, busy: false });
     expect(useLibrary.getState().toast?.kind).toBe("error");
+  });
+
+  it("批量加入即时提交成功结果，第二项失败后停止并保留剩余项", async () => {
+    let rejectSecond!: (error: Error) => void;
+    vi.mocked(api.saveGame)
+      .mockImplementationOnce(async (game) => ({ ...game, addedAt: 123 }))
+      .mockImplementationOnce(() => new Promise((_, reject) => { rejectSecond = reject; }));
+    const pending = useLibrary.getState().addScannedGames(entries);
+    await vi.waitFor(() => expect(api.saveGame).toHaveBeenCalledTimes(2));
+    expect(useLibrary.getState().games).toMatchObject([{ title: "A", addedAt: 123 }]);
+    rejectSecond(new Error("磁盘写入失败"));
+    const result = await pending;
+    expect(result.added.map((game) => game.title)).toEqual(["A"]);
+    expect(result.remaining).toEqual(entries.slice(1));
+    expect(result.error).toEqual({ entry: entries[1], message: "磁盘写入失败" });
+    expect(api.saveGame).toHaveBeenCalledTimes(2);
+    expect(useLibrary.getState()).toMatchObject({ scanOpen: true, formOpen: true, selectedId: null, busy: false });
+    expect(useLibrary.getState().toast?.text).toContain("已加入 1 个");
+    expect(useLibrary.getState().toast?.text).toContain("剩余 2 个");
+  });
+
+  it("重试同一批次只加入未完成项，不重写或重复添加已成功项", async () => {
+    vi.mocked(api.saveGame)
+      .mockImplementationOnce(async (game) => ({ ...game, addedAt: 123 }))
+      .mockRejectedValueOnce("暂时无法写入");
+    await useLibrary.getState().addScannedGames(entries);
+    vi.mocked(api.saveGame).mockImplementation(async (game) => ({ ...game, addedAt: 456 }));
+    const result = await useLibrary.getState().addScannedGames(entries);
+    expect(result.error).toBeNull();
+    expect(result.remaining).toEqual([]);
+    expect(result.skipped).toEqual([entries[0]]);
+    expect(result.added.map((game) => game.title)).toEqual(["B", "C"]);
+    expect(useLibrary.getState().games.map((game) => game.title)).toEqual(["A", "B", "C"]);
+    expect(vi.mocked(api.saveGame).mock.calls.map(([game]) => game.exePath)).toEqual([
+      entries[0].path, entries[1].path, entries[1].path, entries[2].path,
+    ]);
+  });
+
+  it("首项失败时保持原库与筛选，全部待加入项可重试", async () => {
+    const original = { ...newGameDraft(), id: "old", exePath: "C:\\Other.exe", title: "原项目" };
+    useLibrary.setState({ games: [original], selectedId: "old", query: "原", nav: { type: "favorites" } });
+    vi.mocked(api.saveGame).mockRejectedValue("拒绝访问");
+    const result = await useLibrary.getState().addScannedGames(entries);
+    expect(result.remaining).toEqual(entries);
+    expect(result.added).toEqual([]);
+    expect(api.saveGame).toHaveBeenCalledTimes(1);
+    expect(useLibrary.getState()).toMatchObject({ games: [original], selectedId: "old", query: "原", nav: { type: "favorites" } });
+  });
+
+  it("批量加入跳过库内及批次中的重复路径，兼容大小写与分隔符", async () => {
+    useLibrary.setState({ games: [{ ...newGameDraft(), id: "old", exePath: "c:/games/a.EXE" }] });
+    vi.mocked(api.saveGame).mockImplementation(async (game) => game);
+    const duplicate = { ...entries[1], path: "c:/GAMES/b.exe" };
+    const result = await useLibrary.getState().addScannedGames([...entries, duplicate]);
+    expect(result.added.map((game) => game.title)).toEqual(["B", "C"]);
+    expect(result.skipped).toEqual([entries[0], duplicate]);
+    expect(api.saveGame).toHaveBeenCalledTimes(2);
+    expect(useLibrary.getState().games).toHaveLength(3);
+  });
+
+  it("空批次不写入且不改变现有通知", async () => {
+    useLibrary.getState().showToast("info", "原有通知");
+    const result = await useLibrary.getState().addScannedGames([]);
+    expect(result).toEqual({ added: [], skipped: [], remaining: [], error: null });
+    expect(api.saveGame).not.toHaveBeenCalled();
+    expect(useLibrary.getState().toast?.text).toBe("原有通知");
+  });
+
+  it("全部成功后保留当前选择、设置和运行会话，草稿由原入口管理", async () => {
+    const original = { ...newGameDraft(), id: "old", title: "正在运行", exePath: "C:\\Old.exe" };
+    const session = { gameId: "old", pid: 42, startedAt: 123, baselinePlaytime: 0 };
+    useLibrary.setState({ games: [original], selectedId: "old", sessions: [session], editing: original, sort: "title" });
+    vi.mocked(api.saveGame).mockImplementation(async (game) => ({ ...game, addedAt: 789 }));
+    const result = await useLibrary.getState().addScannedGames(entries);
+    expect(result.error).toBeNull();
+    expect(result.added).toHaveLength(3);
+    expect(result.added.every((game) => game.addedAt === 789 && game.workDir === "C:\\Games")).toBe(true);
+    expect(new Set(result.added.map((game) => game.id)).size).toBe(3);
+    expect(useLibrary.getState()).toMatchObject({
+      selectedId: "old", sessions: [session], editing: original, formOpen: true, scanOpen: true, sort: "title", ready: false,
+    });
+    expect(useLibrary.getState().toast).toMatchObject({ kind: "success", text: "已加入 3 个游戏" });
+  });
+
+  it("重叠的批次依次处理，共同路径只保存一次", async () => {
+    vi.mocked(api.saveGame).mockImplementation(async (game) => game);
+    const [first, second] = await Promise.all([
+      useLibrary.getState().addScannedGames(entries.slice(0, 2)),
+      useLibrary.getState().addScannedGames(entries.slice(1)),
+    ]);
+    expect(first.added.map((game) => game.title)).toEqual(["A", "B"]);
+    expect(second.skipped).toEqual([entries[1]]);
+    expect(second.added.map((game) => game.title)).toEqual(["C"]);
+    expect(api.saveGame).toHaveBeenCalledTimes(3);
+    expect(useLibrary.getState().games).toHaveLength(3);
+  });
+
+  it("部分失败的队列不会阻止后续批次", async () => {
+    vi.mocked(api.saveGame)
+      .mockRejectedValueOnce("第一次失败")
+      .mockImplementation(async (game) => game);
+    const [failed, retried] = await Promise.all([
+      useLibrary.getState().addScannedGames(entries),
+      useLibrary.getState().addScannedGames(entries),
+    ]);
+    expect(failed.remaining).toEqual(entries);
+    expect(retried.added).toHaveLength(3);
+    expect(retried.error).toBeNull();
+  });
+
+  it("收藏复用保存结果更新规则，不触发表单关闭或切换选择", async () => {
+    const original = { ...newGameDraft(), id: "old", title: "原项目" };
+    useLibrary.setState({ games: [original], selectedId: "old", editing: original });
+    vi.mocked(api.saveGame).mockResolvedValue({ ...original, favorite: true, addedAt: 456 });
+    await useLibrary.getState().toggleFavorite("old");
+    expect(useLibrary.getState()).toMatchObject({
+      games: [{ ...original, favorite: true, addedAt: 456 }], selectedId: "old", editing: original, formOpen: true,
+    });
   });
 });
