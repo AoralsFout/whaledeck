@@ -13,7 +13,9 @@ const SORTS: { value: SortKey; label: string }[] = [
 ];
 
 function Thumb({ game }: { game: Game }) {
+  const icon = useAssetUrl("icon", game.iconFile);
   const cover = useAssetUrl("cover", game.coverFile);
+  const src = icon ?? cover;
   return (
     <div
       className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
@@ -21,8 +23,13 @@ function Thumb({ game }: { game: Game }) {
         background: "linear-gradient(135deg, rgba(var(--primary-rgb), .25), rgba(var(--accent-rgb), .18))",
       }}
     >
-      {cover ? (
-        <img src={cover} alt="" className="h-full w-full object-cover" draggable={false} />
+      {src ? (
+        <img
+          src={src}
+          alt=""
+          className={icon ? "h-full w-full object-contain p-0.5" : "h-full w-full object-cover"}
+          draggable={false}
+        />
       ) : (
         <span className="text-[13px] font-semibold" style={{ color: "rgba(var(--primary-rgb), .9)" }}>
           {(game.title || "?").charAt(0).toUpperCase()}
@@ -227,7 +234,7 @@ export function Sidebar() {
         style={{ borderColor: "var(--border)" }}
       >
         <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>
-          共 {games.length} 个 · v0.7.0
+          共 {games.length} 个 · v0.8.0
         </span>
         <button
           className="btn btn-ghost !px-2 !py-1 text-[10px]"

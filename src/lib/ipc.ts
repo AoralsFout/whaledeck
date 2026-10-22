@@ -31,7 +31,7 @@ export const api = {
     invoke<string>("import_cover", { id, src }),
   importBackground: (src: string) =>
     invoke<string>("import_background", { src }),
-  assetPath: (kind: "cover" | "background", file: string) =>
+  assetPath: (kind: "cover" | "background" | "icon", file: string) =>
     invoke<string>("asset_path", { kind, file }),
   getSettings: () => invoke<Settings>("get_settings"),
   saveSettings: (settings: Settings) =>

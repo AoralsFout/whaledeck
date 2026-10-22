@@ -70,6 +70,7 @@ export function GameDetail() {
   const deleteGame = useLibrary((s) => s.deleteGame);
   const showToast = useLibrary((s) => s.showToast);
   const cover = useAssetUrl("cover", game?.coverFile ?? null);
+  const icon = useAssetUrl("icon", game?.iconFile ?? null);
 
   const [elapsed, setElapsed] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -143,10 +144,12 @@ export function GameDetail() {
     try {
       const result = await api.autofill(game.id);
       applyGame(result.game);
-      const coverText = result.kind === "local" ? `本地封面：${result.detail}` : "程序图标";
-      const extra =
-        result.filled.length > 0 ? `，补全了 ${result.filled.join("、")}` : "";
-      showToast("success", `已使用${coverText}${extra}`);
+      const parts: string[] = [];
+      if (result.icon) parts.push("图标");
+      if (result.cover) parts.push(`本地封面 ${result.coverDetail}`);
+      if (result.filled.length > 0) parts.push(result.filled.join("、"));
+      if (!result.cover) parts.push("封面请用联网补全或手动选择");
+      showToast(parts.length > 0 ? "success" : "info", `已补全：${parts.join(" · ")}`);
     } catch (err) {
       showToast("error", String(err));
     } finally {
@@ -182,7 +185,7 @@ export function GameDetail() {
 
   return (
     <div className="relative h-full overflow-hidden">
-      {/* 全幅背景 */}
+      {/* 全幅背景（只用封面，不用图标） */}
       <div className="absolute inset-0">
         {cover ? (
           <img src={cover} alt="" className="h-full w-full object-cover" draggable={false} />
@@ -206,17 +209,30 @@ export function GameDetail() {
 
       {/* 内容 */}
       <div className="relative h-full overflow-y-auto">
-        <div className="flex min-h-full flex-col justify-end px-10 pb-8 pt-20">
-          <div className="flex items-end gap-8">
-            <div className="min-w-0 flex-1">
+        <div className="flex min-h-full flex-col justify-end px-10 pb-7 pt-20">
+          {/* 标题 + 图标 */}
+          <div className="flex items-center gap-3">
+            {icon && (
+              <img
+                src={icon}
+                alt=""
+                className="h-11 w-11 shrink-0 rounded-xl object-contain p-1"
+                style={{
+                  background: "rgba(8,13,26,.45)",
+                  border: "1px solid rgba(255,255,255,.14)",
+                  backdropFilter: "blur(8px)",
+                }}
+                draggable={false}
+              />
+            )}
+            <div className="min-w-0">
               <h1
                 className="m-0 truncate text-3xl font-semibold text-white"
                 style={{ textShadow: "0 2px 24px rgba(0,0,0,.65)" }}
               >
                 {game.title}
               </h1>
-
-              <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <span
                   className="chip"
                   style={{
@@ -241,258 +257,223 @@ export function GameDetail() {
                   </span>
                 ))}
               </div>
+            </div>
+          </div>
 
-              <div className="mt-6 flex flex-wrap items-center gap-2">
-                <button
-                  className="btn btn-primary !px-7 !py-2.5 text-[13px]"
-                  disabled={Boolean(running)}
-                  onClick={() => void launch(game.id)}
-                >
-                  <Play size={16} fill="currentColor" />
-                  {running
-                    ? `运行中 ${formatTimer(elapsed)}`
-                    : processLike
-                      ? "开始游戏"
-                      : "用默认程序打开"}
-                </button>
-                <button
-                  className="btn !border-white/15 !bg-black/35 !px-3 !py-2.5 text-white backdrop-blur-md"
-                  onClick={() => void toggleFavorite(game.id)}
-                  title={game.favorite ? "取消收藏" : "加入收藏"}
-                  style={{ color: game.favorite ? "#ffd166" : undefined }}
-                >
-                  <Star size={15} fill={game.favorite ? "currentColor" : "none"} />
-                </button>
-                <button
-                  className="btn !border-white/15 !bg-black/35 !px-3 !py-2.5 text-white backdrop-blur-md"
-                  onClick={() => openEdit(game)}
-                  title="编辑"
-                >
-                  <Pencil size={15} />
-                </button>
-                <button
-                  className="btn !border-white/15 !bg-black/35 !px-3 !py-2.5 text-white backdrop-blur-md"
-                  onClick={openMeta}
-                  title="联网补全封面和信息"
-                >
-                  <CloudDownload size={15} />
-                </button>
-                <button
-                  className="btn !border-white/15 !bg-black/35 !px-3 !py-2.5 text-white backdrop-blur-md"
-                  onClick={() => void applyAutofill()}
-                  disabled={coverBusy}
-                  title="自动补全：读程序信息，封面优先本地图片，找不到就用图标"
-                >
-                  <Sparkles size={15} />
-                </button>
+          {/* 详情区：鼠标移入才显示 */}
+          <div className="group/details mt-4">
+            <div className="pointer-events-none translate-y-2 opacity-0 transition-all duration-200 group-hover/details:pointer-events-auto group-hover/details:translate-y-0 group-hover/details:opacity-100">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                {game.summary && (
+                  <section className="rounded-xl p-4 text-[12px] leading-5" style={PANEL_STYLE}>
+                    <p className="m-0 mb-1.5 text-[11px] font-medium" style={{ color: "rgba(160,180,210,.9)" }}>
+                      简介
+                    </p>
+                    <p className="m-0 line-clamp-6 whitespace-pre-wrap text-white/90">{game.summary}</p>
+                  </section>
+                )}
+
+                <section className="space-y-2.5 rounded-xl p-4 text-[12px]" style={PANEL_STYLE}>
+                  <Row label="目标">{shortPath(game.exePath)}</Row>
+                  {processLike && (
+                    <Row label="工作目录">{game.workDir ? shortPath(game.workDir) : "（与程序同目录）"}</Row>
+                  )}
+                  {game.developer && <Row label="开发商">{game.developer}</Row>}
+                  {game.releaseDate && <Row label="发售日期">{game.releaseDate}</Row>}
+                  <Row label="加入时间">{formatDate(game.addedAt)}</Row>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      className="btn btn-ghost !px-2 !py-1 text-[11px] text-white/70 hover:!text-white"
+                      onClick={() => {
+                        setMinutes(String(Math.floor(game.playtimeSec / 60)));
+                        setFixTime(true);
+                      }}
+                    >
+                      <Clock size={12} />
+                      修正时长
+                    </button>
+                    <button
+                      className="btn btn-ghost !px-2 !py-1 text-[11px] text-white/70 hover:!text-white"
+                      onClick={copyPath}
+                    >
+                      <Copy size={12} />
+                      复制路径
+                    </button>
+                  </div>
+                </section>
+
+                <section className="rounded-xl p-4 text-[12px] xl:col-span-2" style={PANEL_STYLE}>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-medium text-white/90">
+                      <Archive size={13} />
+                      存档备份
+                    </span>
+                    <button
+                      className="btn btn-ghost !px-2 !py-1 text-[11px] text-white/70 hover:!text-white"
+                      onClick={() => void api.openBackupsDir(game.id)}
+                    >
+                      <FolderOpen size={12} />
+                      备份目录
+                    </button>
+                  </div>
+
+                  {game.savePaths.length === 0 ? (
+                    <p className="hint m-0">还没设置存档目录。点「编辑」添加后，就能一键备份存档、坏了再还原。</p>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button className="btn btn-primary !px-4 !py-1.5 text-[11px]" onClick={() => void doBackup()} disabled={backupBusy}>
+                        <Save size={13} />
+                        {backupBusy ? "处理中…" : "立即备份存档"}
+                      </button>
+                      {backups.slice(0, 5).map((backup) => (
+                        <div
+                          key={backup.file}
+                          className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] text-white/85"
+                          style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.08)" }}
+                        >
+                          <span>
+                            {formatDate(backup.createdAt)}{" "}
+                            {new Date(backup.createdAt).toTimeString().slice(0, 5)}
+                          </span>
+                          <span className="text-white/45">{formatBytes(backup.size)}</span>
+                          {restoreTarget === backup.file ? (
+                            <span className="flex gap-1">
+                              <button
+                                className="btn btn-danger !px-2 !py-0.5 text-[10px]"
+                                onClick={() => void doRestore(backup.file)}
+                                disabled={backupBusy}
+                              >
+                                确认还原
+                              </button>
+                              <button className="btn !px-2 !py-0.5 text-[10px]" onClick={() => setRestoreTarget(null)}>
+                                取消
+                              </button>
+                            </span>
+                          ) : (
+                            <button className="btn !px-2 !py-0.5 text-[10px]" onClick={() => setRestoreTarget(backup.file)}>
+                              <RotateCcw size={10} />
+                              还原
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                {game.note && (
+                  <section className="rounded-xl p-4 text-[12px] leading-5 xl:col-span-2" style={PANEL_STYLE}>
+                    <p className="m-0 mb-1.5 text-[11px] font-medium" style={{ color: "rgba(160,180,210,.9)" }}>
+                      备注
+                    </p>
+                    <p className="m-0 whitespace-pre-wrap text-white/90">{game.note}</p>
+                  </section>
+                )}
               </div>
 
-              <div
-                className="mt-6 flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl px-4 py-3"
-                style={{
-                  background: PANEL_BG,
-                  border: "1px solid rgba(255,255,255,.08)",
-                  backdropFilter: "blur(12px)",
-                }}
-              >
-                <Stat icon={<Clock size={14} />} label="最近游玩" value={formatRelative(game.lastPlayedAt)} />
-                <Stat
-                  icon={<Play size={14} />}
-                  label="累计时长"
-                  value={processLike ? formatPlaytime(game.playtimeSec) : "不统计"}
-                />
-                <Stat icon={<Tag size={14} />} label="分类" value={game.category || "未分类"} />
-                <Stat icon={<Archive size={14} />} label="存档目录" value={`${game.savePaths.length} 个`} />
-                {game.source && (
-                  <Stat icon={<CloudDownload size={14} />} label="来源" value={game.source} />
+              {fixTime && (
+                <div className="mt-4 flex items-center gap-2 rounded-xl p-3" style={{ background: PANEL_BG, border: "1px solid rgba(255,255,255,.1)" }}>
+                  <input
+                    className="input max-w-[180px]"
+                    type="number"
+                    min={0}
+                    value={minutes}
+                    onChange={(e) => setMinutes(e.target.value)}
+                    autoFocus
+                  />
+                  <button className="btn btn-primary" onClick={() => void saveTime()}>
+                    保存时长（分钟）
+                  </button>
+                  <button className="btn" onClick={() => setFixTime(false)}>
+                    取消
+                  </button>
+                </div>
+              )}
+
+              <div className="mt-4 flex justify-end">
+                {confirmDelete ? (
+                  <div
+                    className="flex items-center gap-2 rounded-xl px-3 py-2"
+                    style={{ background: "rgba(244,63,94,.14)", border: "1px solid rgba(244,63,94,.4)" }}
+                  >
+                    <span className="text-[11px] text-white/85">确认从库中移除？本地文件不会动。</span>
+                    <button className="btn btn-danger !px-3 !py-1 text-[11px]" onClick={() => void deleteGame(game.id)}>
+                      确认
+                    </button>
+                    <button className="btn !px-3 !py-1 text-[11px]" onClick={() => setConfirmDelete(false)}>
+                      取消
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="btn btn-ghost !px-2 !py-1 text-[11px]"
+                    style={{ color: "rgba(251,113,133,.85)" }}
+                    onClick={() => setConfirmDelete(true)}
+                  >
+                    <Trash2 size={12} />
+                    从库中移除
+                  </button>
                 )}
               </div>
             </div>
           </div>
 
-          {/* 详情区：鼠标移入才显示 */}
-          <div className="group/details mt-6">
-            <div className="pointer-events-none translate-y-2 opacity-0 transition-all duration-200 group-hover/details:pointer-events-auto group-hover/details:translate-y-0 group-hover/details:opacity-100">
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            {game.summary && (
-              <section
-                className="rounded-xl p-4 text-[12px] leading-5"
-                style={PANEL_STYLE}
-              >
-                <p className="m-0 mb-1.5 text-[11px] font-medium" style={{ color: "rgba(160,180,210,.9)" }}>
-                  简介
-                </p>
-                <p className="m-0 line-clamp-6 whitespace-pre-wrap text-white/90">{game.summary}</p>
-              </section>
-            )}
-
-            <section
-              className="space-y-2.5 rounded-xl p-4 text-[12px]"
-              style={PANEL_STYLE}
+          {/* 启动栏（底部常显） */}
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              className="btn btn-primary !px-7 !py-2.5 text-[13px]"
+              disabled={Boolean(running)}
+              onClick={() => void launch(game.id)}
             >
-              <Row label="目标">{shortPath(game.exePath)}</Row>
-              {processLike && (
-                <Row label="工作目录">
-                  {game.workDir ? shortPath(game.workDir) : "（与程序同目录）"}
-                </Row>
-              )}
-              {game.developer && <Row label="开发商">{game.developer}</Row>}
-              {game.releaseDate && <Row label="发售日期">{game.releaseDate}</Row>}
-              <Row label="加入时间">{formatDate(game.addedAt)}</Row>
-              <div className="flex flex-wrap gap-2 pt-1">
-                <button
-                  className="btn btn-ghost !px-2 !py-1 text-[11px] text-white/70 hover:!text-white"
-                  onClick={() => {
-                    setMinutes(String(Math.floor(game.playtimeSec / 60)));
-                    setFixTime(true);
-                  }}
-                >
-                  <Clock size={12} />
-                  修正时长
-                </button>
-                <button
-                  className="btn btn-ghost !px-2 !py-1 text-[11px] text-white/70 hover:!text-white"
-                  onClick={copyPath}
-                >
-                  <Copy size={12} />
-                  复制路径
-                </button>
-              </div>
-            </section>
-
-            <section
-              className="rounded-xl p-4 text-[12px] xl:col-span-2"
-              style={PANEL_STYLE}
+              <Play size={16} fill="currentColor" />
+              {running
+                ? `运行中 ${formatTimer(elapsed)}`
+                : processLike
+                  ? "开始游戏"
+                  : "用默认程序打开"}
+            </button>
+            <button
+              className="btn btn-icon-glass"
+              onClick={() => void toggleFavorite(game.id)}
+              title={game.favorite ? "取消收藏" : "加入收藏"}
+              style={{ color: game.favorite ? "#ffd166" : undefined }}
             >
-              <div className="mb-2 flex items-center justify-between">
-                <span className="flex items-center gap-1.5 font-medium text-white/90">
-                  <Archive size={13} />
-                  存档备份
-                </span>
-                <button
-                  className="btn btn-ghost !px-2 !py-1 text-[11px] text-white/70 hover:!text-white"
-                  onClick={() => void api.openBackupsDir(game.id)}
-                >
-                  <FolderOpen size={12} />
-                  备份目录
-                </button>
-              </div>
-
-              {game.savePaths.length === 0 ? (
-                <p className="hint m-0">还没设置存档目录。点「编辑」添加后，就能一键备份存档、坏了再还原。</p>
-              ) : (
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    className="btn btn-primary !px-4 !py-1.5 text-[11px]"
-                    onClick={() => void doBackup()}
-                    disabled={backupBusy}
-                  >
-                    <Save size={13} />
-                    {backupBusy ? "处理中…" : "立即备份存档"}
-                  </button>
-                  {backups.slice(0, 5).map((backup) => (
-                    <div
-                      key={backup.file}
-                      className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] text-white/85"
-                      style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.08)" }}
-                    >
-                      <span>
-                        {formatDate(backup.createdAt)}{" "}
-                        {new Date(backup.createdAt).toTimeString().slice(0, 5)}
-                      </span>
-                      <span className="text-white/45">{formatBytes(backup.size)}</span>
-                      {restoreTarget === backup.file ? (
-                        <span className="flex gap-1">
-                          <button
-                            className="btn btn-danger !px-2 !py-0.5 text-[10px]"
-                            onClick={() => void doRestore(backup.file)}
-                            disabled={backupBusy}
-                          >
-                            确认还原
-                          </button>
-                          <button
-                            className="btn !px-2 !py-0.5 text-[10px]"
-                            onClick={() => setRestoreTarget(null)}
-                          >
-                            取消
-                          </button>
-                        </span>
-                      ) : (
-                        <button
-                          className="btn !px-2 !py-0.5 text-[10px]"
-                          onClick={() => setRestoreTarget(backup.file)}
-                        >
-                          <RotateCcw size={10} />
-                          还原
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            {game.note && (
-              <section
-                className="rounded-xl p-4 text-[12px] leading-5 xl:col-span-2"
-                style={PANEL_STYLE}
-              >
-                <p className="m-0 mb-1.5 text-[11px] font-medium" style={{ color: "rgba(160,180,210,.9)" }}>
-                  备注
-                </p>
-                <p className="m-0 whitespace-pre-wrap text-white/90">{game.note}</p>
-              </section>
-            )}
+              <Star size={15} fill={game.favorite ? "currentColor" : "none"} />
+            </button>
+            <button className="btn btn-icon-glass" onClick={() => openEdit(game)} title="编辑">
+              <Pencil size={15} />
+            </button>
+            <button className="btn btn-icon-glass" onClick={openMeta} title="联网补全封面和信息">
+              <CloudDownload size={15} />
+            </button>
+            <button
+              className="btn btn-icon-glass"
+              onClick={() => void applyAutofill()}
+              disabled={coverBusy}
+              title="自动补全：读程序信息 + 提取图标 + 找本地封面"
+            >
+              <Sparkles size={15} />
+            </button>
           </div>
 
-          {fixTime && (
-            <div
-              className="mt-4 flex items-center gap-2 rounded-xl p-3"
-              style={{ background: PANEL_BG, border: "1px solid rgba(255,255,255,.1)" }}
-            >
-              <input
-                className="input max-w-[180px]"
-                type="number"
-                min={0}
-                value={minutes}
-                onChange={(e) => setMinutes(e.target.value)}
-                autoFocus
-              />
-              <button className="btn btn-primary" onClick={() => void saveTime()}>
-                保存时长（分钟）
-              </button>
-              <button className="btn" onClick={() => setFixTime(false)}>
-                取消
-              </button>
-            </div>
-          )}
-
-          <div className="mt-4 flex justify-end">
-            {confirmDelete ? (
-              <div
-                className="flex items-center gap-2 rounded-xl px-3 py-2"
-                style={{ background: "rgba(244,63,94,.14)", border: "1px solid rgba(244,63,94,.4)" }}
-              >
-                <span className="text-[11px] text-white/85">确认从库中移除？本地文件不会动。</span>
-                <button className="btn btn-danger !px-3 !py-1 text-[11px]" onClick={() => void deleteGame(game.id)}>
-                  确认
-                </button>
-                <button className="btn !px-3 !py-1 text-[11px]" onClick={() => setConfirmDelete(false)}>
-                  取消
-                </button>
-              </div>
-            ) : (
-              <button
-                className="btn btn-ghost !px-2 !py-1 text-[11px]"
-                style={{ color: "rgba(251,113,133,.85)" }}
-                onClick={() => setConfirmDelete(true)}
-              >
-                <Trash2 size={12} />
-                从库中移除
-              </button>
-            )}
-          </div>
-            </div>
+          {/* 时长统计栏（底部常显） */}
+          <div
+            className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl px-4 py-3"
+            style={{
+              background: PANEL_BG,
+              border: "1px solid rgba(255,255,255,.08)",
+              backdropFilter: "blur(12px)",
+            }}
+          >
+            <Stat icon={<Clock size={14} />} label="最近游玩" value={formatRelative(game.lastPlayedAt)} />
+            <Stat
+              icon={<Play size={14} />}
+              label="累计时长"
+              value={processLike ? formatPlaytime(game.playtimeSec) : "不统计"}
+            />
+            <Stat icon={<Tag size={14} />} label="分类" value={game.category || "未分类"} />
+            <Stat icon={<Archive size={14} />} label="存档目录" value={`${game.savePaths.length} 个`} />
+            {game.source && <Stat icon={<CloudDownload size={14} />} label="来源" value={game.source} />}
           </div>
         </div>
       </div>

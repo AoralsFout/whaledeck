@@ -27,6 +27,10 @@ impl Store {
         self.root.join("covers")
     }
 
+    pub fn icons_dir(&self) -> PathBuf {
+        self.root.join("icons")
+    }
+
     pub fn backgrounds_dir(&self) -> PathBuf {
         self.root.join("backgrounds")
     }
@@ -53,6 +57,7 @@ impl Store {
             self.data_dir(),
             self.backup_dir(),
             self.covers_dir(),
+            self.icons_dir(),
             self.backgrounds_dir(),
         ] {
             fs::create_dir_all(&dir)
@@ -241,6 +246,7 @@ mod tests {
             args: String::new(),
             extra_process_names: vec![],
             cover_file: None,
+            icon_file: None,
             category: "动作".into(),
             tags: vec!["测试".into()],
             note: String::new(),

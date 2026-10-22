@@ -17,6 +17,9 @@ pub struct Game {
     pub extra_process_names: Vec<String>,
     #[serde(default)]
     pub cover_file: Option<String>,
+    /// 程序图标（小的，用于列表缩略图），与封面分开存。
+    #[serde(default)]
+    pub icon_file: Option<String>,
     #[serde(default)]
     pub category: String,
     #[serde(default)]

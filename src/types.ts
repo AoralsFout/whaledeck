@@ -6,6 +6,8 @@ export type Game = {
   args: string;
   extraProcessNames: string[];
   coverFile: string | null;
+  /** 程序图标（列表缩略图用），与封面分开 */
+  iconFile: string | null;
   category: string;
   tags: string[];
   note: string;
@@ -96,8 +98,9 @@ export type MetaItem = {
 
 export type AutofillResult = {
   game: Game;
-  kind: "local" | "icon";
-  detail: string;
+  icon: boolean;
+  cover: boolean;
+  coverDetail: string;
   filled: string[];
 };
 
@@ -110,6 +113,7 @@ export function newGameDraft(): Game {
     args: "",
     extraProcessNames: [],
     coverFile: null,
+    iconFile: null,
     category: "",
     tags: [],
     note: "",

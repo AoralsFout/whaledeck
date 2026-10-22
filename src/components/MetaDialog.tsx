@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CloudDownload, Loader2, Search, X } from "lucide-react";
+import { CloudDownload, ImagePlus, Loader2, Search, X } from "lucide-react";
 import { api } from "../lib/ipc";
 import { useLibrary } from "../store/useLibrary";
 import type { MetaItem, MetaSource } from "../types";
@@ -59,6 +59,20 @@ export function MetaDialog() {
       showToast("error", String(err));
     } finally {
       setApplying(null);
+    }
+  };
+
+  const manualPick = async () => {
+    if (!game) return;
+    const src = await api.pickImage("cover");
+    if (!src) return;
+    try {
+      const name = await api.importCover(game.id, src);
+      applyGame({ ...game, coverFile: name });
+      showToast("success", "封面已更新");
+      close();
+    } catch (err) {
+      showToast("error", String(err));
     }
   };
 
@@ -125,9 +139,15 @@ export function MetaDialog() {
             </p>
           )}
           {!loading && searched && items.length === 0 && (
-            <p className="py-8 text-center text-[12px]" style={{ color: "var(--text-dim)" }}>
-              没找到结果。可以换成原名、中文名或常见简称再试。
-            </p>
+            <div className="space-y-3 py-6 text-center">
+              <p className="m-0 text-[12px]" style={{ color: "var(--text-dim)" }}>
+                没找到结果。可以换原名 / 中文名再试，或直接手动选一张封面。
+              </p>
+              <button className="btn" onClick={() => void manualPick()}>
+                <ImagePlus size={14} />
+                手动选择封面图片
+              </button>
+            </div>
           )}
           {!loading &&
             items.map((item) => {

@@ -11,6 +11,7 @@ function game(partial: Partial<Game>): Game {
     args: "",
     extraProcessNames: [],
     coverFile: null,
+    iconFile: null,
     category: "",
     tags: [],
     note: "",

@@ -355,10 +355,10 @@ pub fn import_background(state: State<'_, AppState>, src: String) -> Result<Stri
 
 #[tauri::command]
 pub fn asset_path(state: State<'_, AppState>, kind: String, file: String) -> String {
-    let dir = if kind == "background" {
-        state.store.backgrounds_dir()
-    } else {
-        state.store.covers_dir()
+    let dir = match kind.as_str() {
+        "background" => state.store.backgrounds_dir(),
+        "icon" => state.store.icons_dir(),
+        _ => state.store.covers_dir(),
     };
     dir.join(file).to_string_lossy().to_string()
 }
@@ -571,9 +571,11 @@ pub async fn apply_meta(
 #[serde(rename_all = "camelCase")]
 pub struct AutofillResult {
     pub game: Game,
-    /// local = 本地封面图；icon = 系统图标
-    pub kind: String,
-    pub detail: String,
+    /// 是否写入了新图标
+    pub icon: bool,
+    /// 是否找到了本地封面
+    pub cover: bool,
+    pub cover_detail: String,
     /// 从版本资源补到的字段
     pub filled: Vec<String>,
 }
@@ -581,32 +583,46 @@ pub struct AutofillResult {
 #[tauri::command]
 pub fn autofill(state: State<'_, AppState>, game_id: String) -> Result<AutofillResult, String> {
     let game = find_game(&state, &game_id)?;
-    let dir = state.store.covers_dir();
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let covers_dir = state.store.covers_dir();
+    let icons_dir = state.store.icons_dir();
+    std::fs::create_dir_all(&covers_dir).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&icons_dir).map_err(|e| e.to_string())?;
 
     let info = crate::program::read_version_info(&game.exe_path).ok();
 
-    let (name, kind, detail) = if let Some(local) = cover::find_local_cover(&game.exe_path) {
+    // 1) 图标：提取到 icons/<id>.png（只当图标，不冒充封面）
+    let icon_name = match cover::icon_png(&game.exe_path) {
+        Ok((png, _, _)) => {
+            let name = format!("{game_id}.png");
+            std::fs::write(icons_dir.join(&name), png)
+                .ok()
+                .map(|_| name)
+        }
+        Err(_) => None,
+    };
+
+    // 2) 本地封面：有就更新，没有保持原样
+    let mut cover_name: Option<String> = None;
+    let mut cover_detail = String::new();
+    if let Some(local) = cover::find_local_cover(&game.exe_path) {
         let ext = local
             .extension()
             .and_then(|e| e.to_str())
             .map(|e| e.to_lowercase())
             .unwrap_or_else(|| "png".into());
         let name = format!("{game_id}.{ext}");
-        std::fs::copy(&local, dir.join(&name))
-            .map_err(|e| format!("复制本地封面失败：{e}"))?;
-        let detail = local
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
-        (name, "local".to_string(), detail)
-    } else {
-        let (png, width, height) = cover::icon_png(&game.exe_path)?;
-        let name = format!("{game_id}.png");
-        std::fs::write(dir.join(&name), png).map_err(|e| format!("保存图标失败：{e}"))?;
-        (name, "icon".to_string(), format!("{width}×{height} 图标"))
-    };
-    remove_old_assets(&dir, &format!("{game_id}."), Some(&name));
+        if std::fs::copy(&local, covers_dir.join(&name)).is_ok() {
+            remove_old_assets(&covers_dir, &format!("{game_id}."), Some(&name));
+            cover_detail = local
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+            cover_name = Some(name);
+        }
+    }
+
+    let icon_written = icon_name.is_some();
+    let cover_written = cover_name.is_some();
 
     let mut filled: Vec<String> = Vec::new();
     let mut games = state.games.lock().unwrap();
@@ -614,6 +630,13 @@ pub fn autofill(state: State<'_, AppState>, game_id: String) -> Result<AutofillR
         .iter_mut()
         .find(|g| g.id == game_id)
         .ok_or_else(|| "游戏记录不存在".to_string())?;
+
+    if let Some(name) = icon_name {
+        target.icon_file = Some(name);
+    }
+    if let Some(name) = cover_name {
+        target.cover_file = Some(name);
+    }
 
     if let Some(info) = &info {
         let stem = Path::new(&target.exe_path)
@@ -649,14 +672,14 @@ pub fn autofill(state: State<'_, AppState>, game_id: String) -> Result<AutofillR
         }
     }
 
-    target.cover_file = Some(name);
     let snapshot = target.clone();
     state.store.save_games(&games)?;
 
     Ok(AutofillResult {
         game: snapshot,
-        kind,
-        detail,
+        icon: icon_written,
+        cover: cover_written,
+        cover_detail,
         filled,
     })
 }
