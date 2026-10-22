@@ -16,6 +16,12 @@ export type Game = {
   addedAt: number;
   /** 需要备份的存档目录，可以多个 */
   savePaths: string[];
+  /** 元数据来源：bangumi / vndb / ymgal，空表示手动填写 */
+  source: string;
+  sourceId: string;
+  developer: string;
+  releaseDate: string;
+  summary: string;
 };
 
 export type ThemePreset = "whale" | "abyss" | "sakura" | "mono";
@@ -74,6 +80,20 @@ export type NavKey =
   | { type: "hidden" }
   | { type: "category"; name: string };
 
+export type MetaSource = "bangumi" | "vndb" | "ymgal";
+
+export type MetaItem = {
+  source: MetaSource;
+  id: string;
+  title: string;
+  subtitle: string;
+  coverUrl: string | null;
+  releaseDate: string;
+  developer: string;
+  summary: string;
+  rating: number | null;
+};
+
 export function newGameDraft(): Game {
   return {
     id: "",
@@ -92,6 +112,11 @@ export function newGameDraft(): Game {
     lastPlayedAt: null,
     addedAt: 0,
     savePaths: [],
+    source: "",
+    sourceId: "",
+    developer: "",
+    releaseDate: "",
+    summary: "",
   };
 }
 

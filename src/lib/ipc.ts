@@ -3,6 +3,8 @@ import { listen } from "@tauri-apps/api/event";
 import type {
   Game,
   LaunchResult,
+  MetaItem,
+  MetaSource,
   SaveBackup,
   ScanEntry,
   Session,
@@ -42,6 +44,10 @@ export const api = {
   openBackupsDir: (id: string) => invoke<void>("open_backups_dir", { id }),
   exportLibrary: () => invoke<boolean>("export_library"),
   importLibrary: () => invoke<number>("import_library"),
+  searchMeta: (source: MetaSource, keyword: string) =>
+    invoke<MetaItem[]>("search_meta", { source, keyword }),
+  applyMeta: (gameId: string, item: MetaItem) =>
+    invoke<Game>("apply_meta", { gameId, item }),
 };
 
 export function fileUrl(absPath: string): string {

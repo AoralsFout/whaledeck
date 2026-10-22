@@ -1,6 +1,7 @@
 use crate::launcher;
+use crate::meta;
 use crate::models::{
-    now_ms, Game, LaunchResult, SaveBackup, ScanEntry, Session, Settings, StoppedPayload,
+    now_ms, Game, LaunchResult, MetaItem, SaveBackup, ScanEntry, Session, Settings, StoppedPayload,
 };
 use crate::savegame;
 use crate::store::Store;
@@ -510,4 +511,55 @@ pub fn import_library(app: AppHandle, state: State<'_, AppState>) -> Result<usiz
 
     copy_dir_files(&covers_sibling(&source), &state.store.covers_dir());
     Ok(count)
+}
+
+// ---------- 联网元数据 ----------
+
+#[tauri::command]
+pub async fn search_meta(source: String, keyword: String) -> Result<Vec<MetaItem>, String> {
+    meta::search(&source, &keyword).await
+}
+
+#[tauri::command]
+pub async fn apply_meta(
+    state: State<'_, AppState>,
+    game_id: String,
+    item: MetaItem,
+) -> Result<Game, String> {
+    let mut cover_file = None;
+    if let Some(url) = item.cover_url.as_deref() {
+        if !url.is_empty() {
+            let (bytes, ext) = meta::download_image(url).await?;
+            let name = format!("{game_id}.{ext}");
+            let dir = state.store.covers_dir();
+            std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+            std::fs::write(dir.join(&name), bytes)
+                .map_err(|e| format!("保存封面失败：{e}"))?;
+            remove_old_assets(&dir, &format!("{game_id}."), Some(&name));
+            cover_file = Some(name);
+        }
+    }
+
+    let mut games = state.games.lock().unwrap();
+    let game = games
+        .iter_mut()
+        .find(|g| g.id == game_id)
+        .ok_or_else(|| "游戏记录不存在".to_string())?;
+    if let Some(cover) = cover_file {
+        game.cover_file = Some(cover);
+    }
+    if !item.summary.trim().is_empty() {
+        game.summary = item.summary.trim().to_string();
+    }
+    if !item.developer.trim().is_empty() {
+        game.developer = item.developer.trim().to_string();
+    }
+    if !item.release_date.trim().is_empty() {
+        game.release_date = item.release_date.trim().to_string();
+    }
+    game.source = item.source.clone();
+    game.source_id = item.id.clone();
+    let snapshot = game.clone();
+    state.store.save_games(&games)?;
+    Ok(snapshot)
 }

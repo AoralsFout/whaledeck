@@ -36,6 +36,17 @@ pub struct Game {
     /// 需要备份的存档目录，可以多个。
     #[serde(default)]
     pub save_paths: Vec<String>,
+    /// 元数据来源（bangumi / vndb / ymgal），空表示手动填写。
+    #[serde(default)]
+    pub source: String,
+    #[serde(default)]
+    pub source_id: String,
+    #[serde(default)]
+    pub developer: String,
+    #[serde(default)]
+    pub release_date: String,
+    #[serde(default)]
+    pub summary: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -121,6 +132,27 @@ pub struct SaveBackup {
     pub file: String,
     pub created_at: u64,
     pub size: u64,
+}
+
+/// 一个元数据搜索结果。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetaItem {
+    pub source: String,
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub subtitle: String,
+    #[serde(default)]
+    pub cover_url: Option<String>,
+    #[serde(default)]
+    pub release_date: String,
+    #[serde(default)]
+    pub developer: String,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub rating: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize)]

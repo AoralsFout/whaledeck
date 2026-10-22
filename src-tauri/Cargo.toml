@@ -1,6 +1,6 @@
 [package]
 name = "whaledeck"
-version = "0.2.0"
+version = "0.3.0"
 description = "WhaleDeck - 本地游戏库管理器"
 authors = ["shasha111250"]
 edition = "2021"
@@ -21,6 +21,7 @@ serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
 sysinfo = "0.33"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 windows-sys = { version = "0.59", features = [
   "Win32_Foundation",
   "Win32_System_Threading",

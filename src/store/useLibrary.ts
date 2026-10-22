@@ -27,6 +27,7 @@ type LibraryState = {
   editing: Game | null;
   settingsOpen: boolean;
   scanOpen: boolean;
+  metaOpen: boolean;
   toast: Toast | null;
 
   init: () => Promise<void>;
@@ -47,6 +48,8 @@ type LibraryState = {
   closeSettings: () => void;
   openScan: () => void;
   closeScan: () => void;
+  openMeta: () => void;
+  closeMeta: () => void;
   showToast: (kind: ToastKind, text: string) => void;
   hideToast: () => void;
   handleStopped: (p: StoppedPayload) => void;
@@ -69,6 +72,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   editing: null,
   settingsOpen: false,
   scanOpen: false,
+  metaOpen: false,
   toast: null,
 
   init: async () => {
@@ -210,6 +214,8 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   closeSettings: () => set({ settingsOpen: false }),
   openScan: () => set({ scanOpen: true }),
   closeScan: () => set({ scanOpen: false }),
+  openMeta: () => set({ metaOpen: true }),
+  closeMeta: () => set({ metaOpen: false }),
 
   showToast: (kind, text) => {
     if (toastTimer) clearTimeout(toastTimer);

@@ -20,6 +20,11 @@ function game(partial: Partial<Game>): Game {
     lastPlayedAt: null,
     addedAt: 0,
     savePaths: [],
+    source: "",
+    sourceId: "",
+    developer: "",
+    releaseDate: "",
+    summary: "",
     ...partial,
   };
 }

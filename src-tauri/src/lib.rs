@@ -1,5 +1,6 @@
 mod commands;
 mod launcher;
+mod meta;
 mod models;
 mod savegame;
 mod store;
@@ -67,6 +68,8 @@ pub fn run() {
             commands::open_backups_dir,
             commands::export_library,
             commands::import_library,
+            commands::search_meta,
+            commands::apply_meta,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

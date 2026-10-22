@@ -1,0 +1,198 @@
+import { useState } from "react";
+import { CloudDownload, Loader2, Search, X } from "lucide-react";
+import { api } from "../lib/ipc";
+import { useLibrary } from "../store/useLibrary";
+import type { MetaItem, MetaSource } from "../types";
+import { Modal } from "./Modal";
+
+const SOURCES: { key: MetaSource; label: string; blurb: string }[] = [
+  { key: "bangumi", label: "Bangumi", blurb: "番组计划 · 游戏条目" },
+  { key: "vndb", label: "VNDB", blurb: "视觉小说数据库" },
+  { key: "ymgal", label: "月幕", blurb: "Galgame 档案" },
+];
+
+function sourceName(source: string): string {
+  return SOURCES.find((s) => s.key === source)?.label ?? source;
+}
+
+export function MetaDialog() {
+  const close = useLibrary((s) => s.closeMeta);
+  const game = useLibrary((s) => s.games.find((g) => g.id === s.selectedId) ?? null);
+  const applyGame = useLibrary((s) => s.applyGame);
+  const showToast = useLibrary((s) => s.showToast);
+
+  const [source, setSource] = useState<MetaSource>("bangumi");
+  const [keyword, setKeyword] = useState(game?.title ?? "");
+  const [items, setItems] = useState<MetaItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [applying, setApplying] = useState<string | null>(null);
+  const [searched, setSearched] = useState(false);
+
+  const runSearch = async () => {
+    const text = keyword.trim();
+    if (!text) return;
+    setLoading(true);
+    setSearched(true);
+    try {
+      const result = await api.searchMeta(source, text);
+      setItems(result);
+      if (result.length === 0) {
+        showToast("info", "没搜到结果，换个别名或原名试试");
+      }
+    } catch (err) {
+      showToast("error", String(err));
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const apply = async (item: MetaItem) => {
+    if (!game) return;
+    setApplying(item.id);
+    try {
+      const updated = await api.applyMeta(game.id, item);
+      applyGame(updated);
+      showToast("success", "已应用封面与信息");
+      close();
+    } catch (err) {
+      showToast("error", String(err));
+    } finally {
+      setApplying(null);
+    }
+  };
+
+  return (
+    <Modal onClose={close} width={700}>
+      <div
+        className="flex items-center justify-between border-b px-5 py-3.5"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <h3 className="m-0 flex items-center gap-2 text-[15px] font-semibold">
+          <CloudDownload size={16} />
+          联网补全信息
+        </h3>
+        <button className="btn btn-ghost !p-1" onClick={close} aria-label="关闭">
+          <X size={16} />
+        </button>
+      </div>
+
+      <div className="space-y-3 px-5 py-4">
+        <div className="flex gap-1.5">
+          {SOURCES.map((s) => (
+            <button
+              key={s.key}
+              className="btn flex-1 !py-2"
+              onClick={() => setSource(s.key)}
+              title={s.blurb}
+              style={
+                source === s.key
+                  ? {
+                      borderColor: "rgba(var(--primary-rgb), .6)",
+                      color: "var(--primary)",
+                      background: "rgba(var(--primary-rgb), .1)",
+                    }
+                  : undefined
+              }
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+        <p className="hint m-0">{SOURCES.find((s) => s.key === source)?.blurb}</p>
+
+        <div className="flex gap-2">
+          <input
+            className="input"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void runSearch();
+            }}
+            placeholder="游戏原名或中文名，例如 CLANNAD"
+            autoFocus
+          />
+          <button className="btn btn-primary shrink-0" onClick={() => void runSearch()} disabled={loading}>
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+            搜索
+          </button>
+        </div>
+
+        <div className="max-h-[46vh] space-y-2 overflow-y-auto">
+          {loading && (
+            <p className="py-8 text-center text-[12px]" style={{ color: "var(--text-dim)" }}>
+              正在从 {sourceName(source)} 搜索…
+            </p>
+          )}
+          {!loading && searched && items.length === 0 && (
+            <p className="py-8 text-center text-[12px]" style={{ color: "var(--text-dim)" }}>
+              没找到结果。可以换成原名、中文名或常见简称再试。
+            </p>
+          )}
+          {!loading &&
+            items.map((item) => {
+              const key = `${item.source}-${item.id}`;
+              return (
+                <div
+                  key={key}
+                  className="flex gap-3 rounded-xl p-2.5"
+                  style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+                >
+                  <div
+                    className="h-[86px] w-[64px] shrink-0 overflow-hidden rounded-lg"
+                    style={{ background: "var(--surface)" }}
+                  >
+                    {item.coverUrl ? (
+                      <img
+                        src={item.coverUrl}
+                        alt={item.title}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    ) : null}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="m-0 truncate text-[13px] font-medium">{item.title}</p>
+                    {item.subtitle && (
+                      <p className="m-0 truncate text-[11px]" style={{ color: "var(--text-dim)" }}>
+                        {item.subtitle}
+                      </p>
+                    )}
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]" style={{ color: "var(--text-dim)" }}>
+                      <span className="chip">{sourceName(item.source)}</span>
+                      {item.releaseDate && <span>{item.releaseDate}</span>}
+                      {item.developer && <span className="truncate">{item.developer}</span>}
+                      {item.rating != null && <span>评分 {item.rating}</span>}
+                    </div>
+                    <button
+                      className="btn btn-primary mt-1.5 !px-3 !py-1 text-[11px]"
+                      onClick={() => void apply(item)}
+                      disabled={applying !== null}
+                    >
+                      {applying === item.id ? "应用中…" : "应用封面和信息"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      </div>
+
+      <div
+        className="flex items-center justify-between border-t px-5 py-3"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <span className="hint">
+          数据来自 Bangumi / VNDB / 月幕的公开接口，仅供个人整理使用
+        </span>
+        <button className="btn" onClick={close}>
+          关闭
+        </button>
+      </div>
+    </Modal>
+  );
+}

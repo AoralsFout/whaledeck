@@ -220,6 +220,11 @@ mod tests {
             last_played_at: None,
             added_at: 0,
             save_paths,
+            source: String::new(),
+            source_id: String::new(),
+            developer: String::new(),
+            release_date: String::new(),
+            summary: String::new(),
         }
     }
 

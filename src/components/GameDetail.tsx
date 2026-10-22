@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Archive,
+  CloudDownload,
   Clock,
   Copy,
   FolderOpen,
@@ -57,6 +58,7 @@ export function GameDetail() {
   const running = useLibrary((s) => s.sessions.find((x) => x.gameId === s.selectedId));
   const select = useLibrary((s) => s.select);
   const openEdit = useLibrary((s) => s.openEdit);
+  const openMeta = useLibrary((s) => s.openMeta);
   const launch = useLibrary((s) => s.launchGame);
   const toggleFavorite = useLibrary((s) => s.toggleFavorite);
   const deleteGame = useLibrary((s) => s.deleteGame);
@@ -218,6 +220,13 @@ export function GameDetail() {
           <button className="btn !px-3 !py-2.5" onClick={() => openEdit(game)} title="编辑">
             <Pencil size={15} />
           </button>
+          <button
+            className="btn !px-3 !py-2.5"
+            onClick={openMeta}
+            title="联网补全封面和信息"
+          >
+            <CloudDownload size={15} />
+          </button>
         </div>
 
         <section
@@ -256,6 +265,24 @@ export function GameDetail() {
           <Row label="最近打开">
             <span>{formatRelative(game.lastPlayedAt)}</span>
           </Row>
+          {game.developer && (
+            <Row label="开发商">
+              <span>{game.developer}</span>
+            </Row>
+          )}
+          {game.releaseDate && (
+            <Row label="发售日期">
+              <span>{game.releaseDate}</span>
+            </Row>
+          )}
+          {game.source && (
+            <Row label="信息来源">
+              <span className="chip">
+                {game.source}
+                {game.sourceId ? ` · ${game.sourceId}` : ""}
+              </span>
+            </Row>
+          )}
           <Row label="加入时间">
             <span>{formatDate(game.addedAt)}</span>
           </Row>
@@ -394,6 +421,17 @@ export function GameDetail() {
             </>
           )}
         </section>
+
+        {game.summary && (
+          <div className="rounded-xl p-3 text-[12px] leading-5" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+            <p className="m-0 mb-1 text-[11px] font-medium" style={{ color: "var(--text-dim)" }}>
+              简介
+            </p>
+            <p className="m-0 line-clamp-6 whitespace-pre-wrap" style={{ color: "var(--text)" }}>
+              {game.summary}
+            </p>
+          </div>
+        )}
 
         {game.note && (
           <div className="rounded-xl p-3 text-[12px] leading-5" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>

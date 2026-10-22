@@ -250,6 +250,11 @@ mod tests {
             last_played_at: None,
             added_at: 1,
             save_paths: vec![],
+            source: String::new(),
+            source_id: String::new(),
+            developer: String::new(),
+            release_date: String::new(),
+            summary: String::new(),
         }
     }
 

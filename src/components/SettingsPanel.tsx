@@ -310,7 +310,7 @@ export function SettingsPanel() {
 
         <Section title="关于" icon={<Palette size={14} />}>
           <div className="space-y-1 text-[12px]" style={{ color: "var(--text-dim)" }}>
-            <p className="m-0">WhaleDeck v0.2.0 · 本地游戏 / 项目启动台</p>
+            <p className="m-0">WhaleDeck v0.3.0 · 本地游戏 / 项目启动台</p>
             <p className="m-0">
               GitHub:{" "}
               <span className="select-text" style={{ color: "var(--primary)" }}>
