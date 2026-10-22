@@ -24,6 +24,7 @@ import { PRESETS, presetToTheme } from "../lib/theme";
 import { useLibrary } from "../store/useLibrary";
 import type { Theme, ThemePreset } from "../types";
 import { Modal } from "./Modal";
+import { Brand } from "./Brand";
 
 const TABS = [
   { id: "general", label: "常规", icon: Settings2 },
@@ -434,6 +435,7 @@ export function SettingsPanel() {
           {tab === "about" && (
             <Section title="WhaleDeck" icon={<Info size={16} aria-hidden="true" />}>
               <div className="settings-about text-[13px]" style={{ color: "var(--text-dim)" }}>
+                <Brand about />
                 <p className="m-0">WhaleDeck v0.8.1 · 本地游戏 / 项目启动台</p>
                 <p className="m-0">
                   GitHub:{" "}
