@@ -15,7 +15,9 @@
   --bg-dim: 0.55;
   --bg-image: none;
   --window-radius: 12px;
-  color-scheme: dark;
+  --app-color-scheme: dark;
+  /* 根画布保持默认配色，避免 WebView 为透明区域填充深色底。 */
+  color-scheme: normal;
 }
 
 :root[data-mode="light"] {
@@ -26,7 +28,7 @@
   --border: #d8e2f4;
   --text: #12203a;
   --text-dim: #5b6f8f;
-  color-scheme: light;
+  --app-color-scheme: light;
 }
 
 html,
@@ -35,7 +37,8 @@ body,
   height: 100%;
 }
 
-html {
+html,
+body {
   background: transparent;
 }
 
@@ -46,11 +49,17 @@ html {
 body {
   margin: 0;
   font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, sans-serif;
-  background: var(--bg);
   color: var(--text);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   user-select: none;
+}
+
+#root {
+  position: relative;
+  /* 背景只画在应用容器内，避免 body 背景传播到整个页面画布。 */
+  background: var(--bg);
+  color-scheme: var(--app-color-scheme);
   border-radius: var(--window-radius);
   /* 同时裁剪背景、固定定位的弹窗与浮层，露出真正透明的窗口四角。 */
   clip-path: inset(0 round var(--window-radius));
@@ -127,7 +136,7 @@ body {
   }
 }
 
-body::before {
+#root::before {
   content: "";
   position: fixed;
   inset: 0;
@@ -139,7 +148,7 @@ body::before {
   pointer-events: none;
 }
 
-body::after {
+#root::after {
   content: "";
   position: fixed;
   inset: 0;
