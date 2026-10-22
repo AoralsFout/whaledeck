@@ -138,12 +138,15 @@ export function GameDetail() {
       .catch(() => showToast("error", "复制失败"));
   };
 
-  const applyAutoCover = async () => {
+  const applyAutofill = async () => {
     setCoverBusy(true);
     try {
-      const outcome = await api.autoCover(game.id);
-      applyGame({ ...game, coverFile: outcome.coverFile });
-      showToast("success", `已使用本地封面：${outcome.detail}`);
+      const result = await api.autofill(game.id);
+      applyGame(result.game);
+      const coverText = result.kind === "local" ? `本地封面：${result.detail}` : "程序图标";
+      const extra =
+        result.filled.length > 0 ? `，补全了 ${result.filled.join("、")}` : "";
+      showToast("success", `已使用${coverText}${extra}`);
     } catch (err) {
       showToast("error", String(err));
     } finally {
@@ -276,9 +279,9 @@ export function GameDetail() {
                 </button>
                 <button
                   className="btn !border-white/15 !bg-black/35 !px-3 !py-2.5 text-white backdrop-blur-md"
-                  onClick={() => void applyAutoCover()}
+                  onClick={() => void applyAutofill()}
                   disabled={coverBusy}
-                  title="自动封面：在游戏目录里找 cover / header / poster 等图片"
+                  title="自动补全：读程序信息，封面优先本地图片，找不到就用图标"
                 >
                   <Sparkles size={15} />
                 </button>
@@ -307,8 +310,10 @@ export function GameDetail() {
             </div>
           </div>
 
-          {/* 详情卡片 */}
-          <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {/* 详情区：鼠标移入才显示 */}
+          <div className="group/details mt-6">
+            <div className="pointer-events-none translate-y-2 opacity-0 transition-all duration-200 group-hover/details:pointer-events-auto group-hover/details:translate-y-0 group-hover/details:opacity-100">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             {game.summary && (
               <section
                 className="rounded-xl p-4 text-[12px] leading-5"
@@ -486,6 +491,8 @@ export function GameDetail() {
                 从库中移除
               </button>
             )}
+          </div>
+            </div>
           </div>
         </div>
       </div>

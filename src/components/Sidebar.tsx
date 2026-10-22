@@ -227,7 +227,7 @@ export function Sidebar() {
         style={{ borderColor: "var(--border)" }}
       >
         <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>
-          共 {games.length} 个 · v0.6.1
+          共 {games.length} 个 · v0.7.0
         </span>
         <button
           className="btn btn-ghost !px-2 !py-1 text-[10px]"

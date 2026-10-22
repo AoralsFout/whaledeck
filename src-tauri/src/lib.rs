@@ -3,6 +3,7 @@ mod cover;
 mod launcher;
 mod meta;
 mod models;
+mod program;
 mod savegame;
 mod store;
 
@@ -71,7 +72,7 @@ pub fn run() {
             commands::import_library,
             commands::search_meta,
             commands::apply_meta,
-            commands::auto_cover,
+            commands::autofill,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

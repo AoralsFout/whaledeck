@@ -94,10 +94,11 @@ export type MetaItem = {
   rating: number | null;
 };
 
-export type CoverOutcome = {
-  coverFile: string;
+export type AutofillResult = {
+  game: Game;
   kind: "local" | "icon";
   detail: string;
+  filled: string[];
 };
 
 export function newGameDraft(): Game {

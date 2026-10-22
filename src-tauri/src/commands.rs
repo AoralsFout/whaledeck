@@ -565,22 +565,26 @@ pub async fn apply_meta(
     Ok(snapshot)
 }
 
-// ---------- 自动封面 ----------
+// ---------- 自动封面 / 信息补全 ----------
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CoverOutcome {
-    pub cover_file: String,
-    /// local = 本地扫描到的封面图；icon = 系统图标
+pub struct AutofillResult {
+    pub game: Game,
+    /// local = 本地封面图；icon = 系统图标
     pub kind: String,
     pub detail: String,
+    /// 从版本资源补到的字段
+    pub filled: Vec<String>,
 }
 
 #[tauri::command]
-pub fn auto_cover(state: State<'_, AppState>, game_id: String) -> Result<CoverOutcome, String> {
+pub fn autofill(state: State<'_, AppState>, game_id: String) -> Result<AutofillResult, String> {
     let game = find_game(&state, &game_id)?;
     let dir = state.store.covers_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+    let info = crate::program::read_version_info(&game.exe_path).ok();
 
     let (name, kind, detail) = if let Some(local) = cover::find_local_cover(&game.exe_path) {
         let ext = local
@@ -597,24 +601,62 @@ pub fn auto_cover(state: State<'_, AppState>, game_id: String) -> Result<CoverOu
             .unwrap_or_default();
         (name, "local".to_string(), detail)
     } else {
-        return Err("没找到本地封面图。可以用「联网补全」搜索，或手动选择封面。".into());
+        let (png, width, height) = cover::icon_png(&game.exe_path)?;
+        let name = format!("{game_id}.png");
+        std::fs::write(dir.join(&name), png).map_err(|e| format!("保存图标失败：{e}"))?;
+        (name, "icon".to_string(), format!("{width}×{height} 图标"))
     };
-
     remove_old_assets(&dir, &format!("{game_id}."), Some(&name));
 
+    let mut filled: Vec<String> = Vec::new();
     let mut games = state.games.lock().unwrap();
     let target = games
         .iter_mut()
         .find(|g| g.id == game_id)
         .ok_or_else(|| "游戏记录不存在".to_string())?;
-    target.cover_file = Some(name.clone());
+
+    if let Some(info) = &info {
+        let stem = Path::new(&target.exe_path)
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let title_is_stem = target.title.trim().eq_ignore_ascii_case(&stem);
+        let new_title = if !info.product.trim().is_empty() {
+            info.product.trim().to_string()
+        } else {
+            info.description.trim().to_string()
+        };
+        if (title_is_stem || target.title.trim().is_empty()) && !new_title.is_empty() {
+            target.title = new_title;
+            filled.push("名称".into());
+        }
+        if target.developer.trim().is_empty() && !info.company.trim().is_empty() {
+            target.developer = info.company.trim().to_string();
+            filled.push("开发商".into());
+        }
+        if target.note.trim().is_empty()
+            && (!info.description.trim().is_empty() || !info.version.trim().is_empty())
+        {
+            let mut note = info.description.trim().to_string();
+            if !info.version.trim().is_empty() {
+                if !note.is_empty() {
+                    note.push_str(" · ");
+                }
+                note.push_str(&format!("v{}", info.version.trim()));
+            }
+            target.note = note;
+            filled.push("备注".into());
+        }
+    }
+
+    target.cover_file = Some(name);
     let snapshot = target.clone();
     state.store.save_games(&games)?;
-    let _ = snapshot;
 
-    Ok(CoverOutcome {
-        cover_file: name,
+    Ok(AutofillResult {
+        game: snapshot,
         kind,
         detail,
+        filled,
     })
 }

@@ -250,9 +250,7 @@ pub fn encode_png(rgba: &[u8], width: u32, height: u32) -> Result<Vec<u8>, Strin
 
 /// 提取目标图标并返回 PNG 字节。
 ///
-/// v0.5 起不再用于自动封面（用户不希望封面回退成 exe 图标），
-/// 保留为可选能力，供以后做「用图标当封面」开关。
-#[allow(dead_code)]
+/// 用于普通软件/工具的封面兜底（v0.7 起重新启用，仅在本地找不到封面图时使用）。
 pub fn icon_png(target: &str) -> Result<(Vec<u8>, u32, u32), String> {
     let (rgba, width, height) = shell_icon_png(target)?;
     let png = encode_png(&rgba, width, height)?;
