@@ -77,7 +77,7 @@ export function MetaDialog() {
   };
 
   return (
-    <Modal onClose={close} width={700}>
+    <Modal title="联网补全信息" onClose={close} width={700}>
       <div
         className="flex items-center justify-between border-b px-5 py-3.5"
         style={{ borderColor: "var(--border)" }}
@@ -96,6 +96,7 @@ export function MetaDialog() {
           {SOURCES.map((s) => (
             <button
               key={s.key}
+              aria-pressed={source === s.key}
               className="btn flex-1 !py-2"
               onClick={() => setSource(s.key)}
               title={s.blurb}
@@ -103,7 +104,7 @@ export function MetaDialog() {
                 source === s.key
                   ? {
                       borderColor: "rgba(var(--primary-rgb), .6)",
-                      color: "var(--primary)",
+                      color: "var(--primary-ink)",
                       background: "rgba(var(--primary-rgb), .1)",
                     }
                   : undefined
@@ -117,6 +118,7 @@ export function MetaDialog() {
 
         <div className="flex gap-2">
           <input
+            aria-label="游戏原名或中文名"
             className="input"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}

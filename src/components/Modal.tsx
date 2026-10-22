@@ -1,36 +1,60 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 type Props = {
   children: ReactNode;
   onClose: () => void;
   width?: number;
-  align?: "center" | "right";
+  title: string;
 };
 
-export function Modal({ children, onClose, width = 560 }: Props) {
+export function Modal({ children, onClose, width = 560, title }: Props) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+    const dialog = dialogRef.current;
+    const previousFocus = document.activeElement;
+    dialog?.showModal();
+    return () => {
+      dialog?.close();
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, []);
 
   return (
-    <div
-      className="fixed inset-0 z-40 flex items-center justify-center p-6"
-      onMouseDown={(e) => {
+    <dialog
+      ref={dialogRef}
+      className="modal"
+      aria-label={title}
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+      onKeyDown={(e) => {
+        if (e.key !== "Tab") return;
+        const controls = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]',
+        )).filter((element) => element.getClientRects().length > 0);
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (!first) { e.preventDefault(); return; }
+        if (e.shiftKey && (document.activeElement === first || document.activeElement === e.currentTarget)) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }}
+      onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="absolute inset-0 bg-black/55 backdrop-blur-[3px]" />
       <div
-        className="glass animate-pop-in relative max-h-[88vh] w-full overflow-hidden rounded-2xl shadow-2xl"
+        className="modal-panel glass animate-pop-in relative w-full overflow-hidden rounded-2xl shadow-2xl"
         style={{ maxWidth: width }}
-        onMouseDown={(e) => e.stopPropagation()}
       >
         {children}
       </div>
-    </div>
+    </dialog>
   );
 }

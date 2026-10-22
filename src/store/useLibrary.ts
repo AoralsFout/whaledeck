@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { api } from "../lib/ipc";
+import { filterGames } from "../lib/library";
 import type {
   Game,
   NavKey,
@@ -38,7 +39,7 @@ type LibraryState = {
   openNew: () => void;
   openEdit: (game: Game) => void;
   closeForm: () => void;
-  saveGame: (game: Game) => Promise<void>;
+  saveGame: (game: Game) => Promise<boolean>;
   deleteGame: (id: string) => Promise<void>;
   applyGame: (game: Game) => void;
   launchGame: (id: string) => Promise<void>;
@@ -129,10 +130,15 @@ export const useLibrary = create<LibraryState>((set, get) => ({
         formOpen: false,
         editing: null,
         selectedId: saved.id,
+        ...(filterGames([saved], s.nav, s.query).length === 0
+          ? { nav: saved.hidden ? { type: "hidden" as const } : { type: "all" as const }, query: "" }
+          : {}),
       }));
       get().showToast("success", "已保存");
+      return true;
     } catch (err) {
       get().showToast("error", String(err));
+      return false;
     } finally {
       set({ busy: false });
     }

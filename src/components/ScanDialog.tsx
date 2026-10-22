@@ -92,7 +92,7 @@ export function ScanDialog() {
   };
 
   return (
-    <Modal onClose={close} width={720}>
+    <Modal title="扫描文件夹" onClose={() => { if (!saving) close(); }} width={720}>
       <div
         className="flex items-center justify-between border-b px-5 py-3.5"
         style={{ borderColor: "var(--border)" }}

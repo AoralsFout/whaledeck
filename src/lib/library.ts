@@ -35,6 +35,15 @@ export function sortGames(games: Game[], sort: SortKey): Game[] {
   }
 }
 
+/** 列表与详情共享同一选择规则，避免展示筛选结果之外的项目。 */
+export function getLibraryView(
+  games: Game[], nav: NavKey, query: string, sort: SortKey, selectedId: string | null,
+) {
+  const visible = sortGames(filterGames(games, nav, query), sort);
+  const selected = visible.find((game) => game.id === selectedId) ?? visible[0] ?? null;
+  return { visible, selected };
+}
+
 export function collectCategories(games: Game[], extra: string[]): string[] {
   const set = new Set<string>(extra);
   for (const game of games) {

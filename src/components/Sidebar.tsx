@@ -1,8 +1,9 @@
-import { ArrowDownWideNarrow, FolderSearch, Plus, Search, Settings, Star, X } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowLeft, FolderSearch, Plus, Search, Settings, Star, X } from "lucide-react";
 import { formatPlaytime, formatRelative } from "../lib/format";
-import { collectCategories, filterGames, sortGames } from "../lib/library";
+import { collectCategories } from "../lib/library";
 import { useAssetUrl } from "../lib/useAssetUrl";
 import { useLibrary } from "../store/useLibrary";
+import { useLibraryView } from "../store/useLibraryView";
 import type { Game, NavKey, SortKey } from "../types";
 
 const SORTS: { value: SortKey; label: string }[] = [
@@ -39,7 +40,7 @@ function Thumb({ game }: { game: Game }) {
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate: () => void }) {
   const games = useLibrary((s) => s.games);
   const settings = useLibrary((s) => s.settings);
   const nav = useLibrary((s) => s.nav);
@@ -56,7 +57,7 @@ export function Sidebar() {
   const sessions = useLibrary((s) => s.sessions);
 
   const categories = collectCategories(games, settings?.categories ?? []);
-  const visible = sortGames(filterGames(games, nav, query), sort);
+  const { visible } = useLibraryView();
 
   const isActive = (key: NavKey) => {
     if (key.type !== nav.type) return false;
@@ -73,14 +74,16 @@ export function Sidebar() {
 
   return (
     <aside
-      className="flex w-[258px] shrink-0 flex-col border-r"
+      id="library-sidebar"
+      aria-label="游戏库"
+      className="library-sidebar flex shrink-0 flex-col border-r"
       style={{
         borderColor: "var(--border)",
         background: "color-mix(in srgb, var(--surface) 48%, transparent)",
         backdropFilter: "blur(24px) saturate(1.15)",
       }}
     >
-      <div className="flex items-center gap-2 px-3.5 pb-2.5 pt-4" data-tauri-drag-region>
+      <div className="sidebar-brand flex items-center gap-2.5 px-4 pb-4 pt-4" data-tauri-drag-region>
         <div
           className="flex h-8 w-8 items-center justify-center rounded-lg text-base"
           data-tauri-drag-region
@@ -93,7 +96,7 @@ export function Sidebar() {
         </div>
         <div className="min-w-0 leading-tight" data-tauri-drag-region>
           <p className="m-0 text-[14px] font-semibold tracking-wide" data-tauri-drag-region>WhaleDeck</p>
-          <p className="m-0 text-[9px]" style={{ color: "var(--text-dim)" }} data-tauri-drag-region>
+          <p className="m-0 mt-0.5 text-[11px]" style={{ color: "var(--text-dim)" }} data-tauri-drag-region>
             鲸鱼游戏台
           </p>
         </div>
@@ -101,10 +104,15 @@ export function Sidebar() {
           className="btn btn-ghost ml-auto !p-1"
           onClick={openSettings}
           title="设置"
+          aria-label="设置"
         >
           <Settings size={14} />
         </button>
       </div>
+
+      <button className="btn btn-ghost mobile-sidebar-back mx-3 mb-3" onClick={onNavigate}>
+        <ArrowLeft size={16} aria-hidden="true" /> 返回详情
+      </button>
 
       <div className="space-y-2 px-3">
         <div className="relative">
@@ -114,7 +122,8 @@ export function Sidebar() {
             style={{ color: "var(--text-dim)" }}
           />
           <input
-            className="input !py-1.5 pl-7 pr-6 text-[11.5px]"
+            className="input sidebar-search"
+            aria-label="搜索游戏、分类、标签"
             placeholder="搜索游戏、分类、标签…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -122,7 +131,7 @@ export function Sidebar() {
           />
           {query && (
             <button
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5"
+              className="search-clear absolute right-1 top-1/2 -translate-y-1/2 rounded"
               style={{ color: "var(--text-dim)" }}
               onClick={() => setQuery("")}
               aria-label="清空搜索"
@@ -132,7 +141,7 @@ export function Sidebar() {
           )}
         </div>
 
-        <div className="flex gap-1 overflow-x-auto pb-1">
+        <div className="sidebar-filters flex flex-wrap gap-1.5 pb-1" role="group" aria-label="筛选游戏">
           {chips.map((chip) => {
             const active = isActive(chip);
             const label =
@@ -147,10 +156,11 @@ export function Sidebar() {
               <button
                 key={chip.type + ("name" in chip ? chip.name : "")}
                 onClick={() => setNav(chip)}
-                className="shrink-0 rounded-full px-2 py-0.5 text-[10.5px] transition-colors"
+                className="filter-chip rounded-full px-2.5 py-1 text-[12px] transition-colors"
+                aria-pressed={active}
                 style={{
                   background: active ? "rgba(var(--primary-rgb), .16)" : "var(--surface-2)",
-                  color: active ? "var(--primary)" : "var(--text-dim)",
+                  color: active ? "var(--primary-ink)" : "var(--text-dim)",
                   border: `1px solid ${active ? "rgba(var(--primary-rgb), .4)" : "var(--border)"}`,
                 }}
               >
@@ -161,17 +171,18 @@ export function Sidebar() {
         </div>
 
         <div className="flex items-center gap-1.5">
-          <div className="relative flex-1">
+          <div className="relative min-w-0 flex-1">
             <ArrowDownWideNarrow
               size={13}
               className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2"
               style={{ color: "var(--text-dim)" }}
             />
             <select
-              className="input cursor-pointer appearance-none !py-1 pl-6 pr-2 text-[10.5px]"
+              className="input sidebar-sort cursor-pointer appearance-none"
               value={sort}
               onChange={(e) => void setSort(e.target.value as SortKey)}
               title="排序方式"
+              aria-label="排序方式"
             >
               {SORTS.map((s) => (
                 <option key={s.value} value={s.value}>
@@ -180,10 +191,10 @@ export function Sidebar() {
               ))}
             </select>
           </div>
-          <button className="btn !px-2 !py-1" onClick={() => void openScan()} title="扫描文件夹">
+          <button className="btn sidebar-tool !px-2" onClick={openScan} title="扫描文件夹" aria-label="扫描文件夹">
             <FolderSearch size={13} />
           </button>
-          <button className="btn btn-primary !px-2 !py-1" onClick={openNew} title="添加">
+          <button className="btn btn-primary sidebar-tool !px-2" onClick={openNew} title="添加项目" aria-label="添加项目">
             <Plus size={13} />
           </button>
         </div>
@@ -201,9 +212,10 @@ export function Sidebar() {
           return (
             <button
               key={game.id}
-              onClick={() => select(game.id)}
+              onClick={() => { select(game.id); onNavigate(); }}
               onDoubleClick={() => void useLibrary.getState().launchGame(game.id)}
-              className="mb-0.5 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors"
+              className="library-item mb-1 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors"
+              aria-current={active ? "true" : undefined}
               style={{
                 background: active ? "rgba(var(--primary-rgb), .13)" : "transparent",
                 border: `1px solid ${active ? "rgba(var(--primary-rgb), .3)" : "transparent"}`,
@@ -212,15 +224,15 @@ export function Sidebar() {
             >
               <Thumb game={game} />
               <div className="min-w-0 flex-1">
-                <p className="m-0 truncate text-[12px]" style={{ color: active ? "var(--text)" : "var(--text)" }}>
+                <p className="m-0 truncate text-[13px] font-medium">
                   {game.title}
                 </p>
-                <p className="m-0 truncate text-[9.5px]" style={{ color: "var(--text-dim)" }}>
+                <p className="m-0 mt-0.5 truncate text-[11px]" style={{ color: "var(--text-dim)" }}>
                   {formatRelative(game.lastPlayedAt)} · {formatPlaytime(game.playtimeSec)}
                 </p>
               </div>
               {running && (
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#7ee7c8]" title="运行中" />
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#7ee7c8]" title="运行中" aria-label="运行中" />
               )}
               {game.favorite && (
                 <Star size={11} className="shrink-0" style={{ color: "#ffd166" }} fill="currentColor" />
@@ -235,7 +247,7 @@ export function Sidebar() {
         style={{ borderColor: "var(--border)" }}
       >
         <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>
-          共 {games.length} 个 · v0.8.0
+          {visible.length} / {games.length} 个项目
         </span>
         <button
           className="btn btn-ghost !px-2 !py-1 text-[10px]"

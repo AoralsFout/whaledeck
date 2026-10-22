@@ -1,7 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Menu } from "lucide-react";
 import { api, fileUrl, onGameStopped, onLaunchFailed } from "./lib/ipc";
 import { applyTheme } from "./lib/theme";
 import { useLibrary } from "./store/useLibrary";
+import { useLibraryView } from "./store/useLibraryView";
 import { Sidebar } from "./components/Sidebar";
 import { GameDetail } from "./components/GameDetail";
 import { GameForm } from "./components/GameForm";
@@ -15,7 +17,9 @@ import { WindowChrome } from "./components/WindowChrome";
 export default function App() {
   const ready = useLibrary((s) => s.ready);
   const settings = useLibrary((s) => s.settings);
-  const games = useLibrary((s) => s.games);
+  const { selected } = useLibraryView();
+  const gameCount = useLibrary((s) => s.games.length);
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const selectedId = useLibrary((s) => s.selectedId);
   const formOpen = useLibrary((s) => s.formOpen);
   const settingsOpen = useLibrary((s) => s.settingsOpen);
@@ -44,11 +48,9 @@ export default function App() {
   // 默认选中第一个游戏
   useEffect(() => {
     if (!ready) return;
-    const exists = selectedId && games.some((g) => g.id === selectedId);
-    if (exists) return;
-    if (games.length > 0) select(games[0].id);
-    else if (selectedId) select(null);
-  }, [ready, games, selectedId, select]);
+    const nextId = selected?.id ?? null;
+    if (selectedId !== nextId) select(nextId);
+  }, [ready, selected?.id, selectedId, select]);
 
   // 主题应用 + 背景图
   useEffect(() => {
@@ -96,14 +98,18 @@ export default function App() {
     );
   }
 
-  const selected = games.find((g) => g.id === selectedId);
-
   return (
-    <div className="flex h-full">
+    <div className="app-shell flex h-full" data-navigation-open={navigationOpen}>
       <WindowChrome />
-      <Sidebar />
-      <main className="relative min-w-0 flex-1">
-        {selected ? <GameDetail /> : <EmptyState onAdd={openNew} />}
+      <button className="btn mobile-nav-toggle" aria-label="打开游戏库" aria-expanded={navigationOpen} aria-controls="library-sidebar" onClick={() => setNavigationOpen(true)}>
+        <Menu size={17} aria-hidden="true" /> 游戏库
+      </button>
+      <Sidebar onNavigate={() => setNavigationOpen(false)} />
+      <main id="main-content" className="relative min-h-0 min-w-0 flex-1">
+        {selected ? <GameDetail key={selected.id} game={selected} /> : <EmptyState onAdd={openNew} filtered={gameCount > 0} onReset={() => {
+          useLibrary.getState().setQuery("");
+          useLibrary.getState().setNav({ type: "all" });
+        }} />}
       </main>
 
       {formOpen && <GameForm />}

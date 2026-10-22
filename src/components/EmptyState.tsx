@@ -1,8 +1,8 @@
 import { Plus } from "lucide-react";
 
-export function EmptyState({ onAdd }: { onAdd: () => void }) {
+export function EmptyState({ onAdd, filtered = false, onReset }: { onAdd: () => void; filtered?: boolean; onReset?: () => void }) {
   return (
-    <div className="flex h-full min-h-[420px] flex-col items-center justify-center gap-5">
+    <div className="empty-state flex h-full flex-col items-center justify-center gap-5 overflow-y-auto px-6 py-20">
       <div className="relative">
         <div
           className="absolute -inset-8 rounded-full opacity-40 blur-2xl"
@@ -11,14 +11,14 @@ export function EmptyState({ onAdd }: { onAdd: () => void }) {
         <div className="relative text-7xl">🐋</div>
       </div>
       <div className="text-center">
-        <h2 className="m-0 text-lg font-semibold">游戏库还是空的</h2>
+        <h1 className="m-0 text-lg font-semibold">{filtered ? "没有匹配的项目" : "游戏库还是空的"}</h1>
         <p className="m-0 mt-1.5 text-[13px]" style={{ color: "var(--text-dim)" }}>
-          把散落各处的游戏收进来，点一下就能启动，还会自动记录游玩时长。
+          {filtered ? "试试其他关键词或分类，也可以清除筛选查看游戏库。" : "把散落各处的游戏收进来，点一下就能启动，还会自动记录游玩时长。"}
         </p>
       </div>
-      <button className="btn btn-primary" onClick={onAdd}>
+      <button className="btn btn-primary" onClick={filtered ? onReset : onAdd}>
         <Plus size={15} />
-        添加第一个游戏
+        {filtered ? "清除筛选" : "添加第一个游戏"}
       </button>
       <p className="m-0 text-[11px]" style={{ color: "var(--text-dim)" }}>
         支持任意本地 exe · 数据只保存在本机

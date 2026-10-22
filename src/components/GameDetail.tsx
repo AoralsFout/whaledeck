@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Archive,
   CloudDownload,
   Clock,
+  ChevronDown,
   Copy,
   FolderOpen,
   Pencil,
@@ -25,7 +26,7 @@ import {
 import { useAssetUrl } from "../lib/useAssetUrl";
 import { api } from "../lib/ipc";
 import { useLibrary } from "../store/useLibrary";
-import { isProcessTarget, type SaveBackup } from "../types";
+import { isProcessTarget, type Game, type SaveBackup } from "../types";
 
 const PANEL_BG = "rgba(10, 16, 30, 0.38)";
 const PANEL_STYLE = {
@@ -40,10 +41,10 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
     <div className="flex min-w-0 items-center gap-2">
       <span className="shrink-0" style={{ color: "rgba(180, 200, 230, .8)" }}>{icon}</span>
       <div className="min-w-0 leading-tight">
-        <p className="m-0 text-[10px]" style={{ color: "rgba(160, 180, 210, .85)" }}>
+        <p className="m-0 text-[11px]" style={{ color: "#a8b8d2" }}>
           {label}
         </p>
-        <p className="m-0 text-[12px] break-words text-white">{value}</p>
+        <p className="m-0 mt-0.5 text-[13px] break-words text-white">{value}</p>
       </div>
     </div>
   );
@@ -60,9 +61,8 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-export function GameDetail() {
-  const game = useLibrary((s) => s.games.find((g) => g.id === s.selectedId) ?? null);
-  const running = useLibrary((s) => s.sessions.find((x) => x.gameId === s.selectedId));
+export function GameDetail({ game }: { game: Game }) {
+  const running = useLibrary((s) => s.sessions.find((x) => x.gameId === game.id));
   const openEdit = useLibrary((s) => s.openEdit);
   const openMeta = useLibrary((s) => s.openMeta);
   const launch = useLibrary((s) => s.launchGame);
@@ -81,6 +81,14 @@ export function GameDetail() {
   const [backupBusy, setBackupBusy] = useState(false);
   const [coverBusy, setCoverBusy] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [launchBusy, setLaunchBusy] = useState(false);
+  const alive = useRef(true);
+
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
 
   useEffect(() => {
     if (!running) {
@@ -94,26 +102,19 @@ export function GameDetail() {
     return () => clearInterval(id);
   }, [running]);
 
-  useEffect(() => {
-    setConfirmDelete(false);
-    setFixTime(false);
-    setRestoreTarget(null);
-  }, [game?.id]);
-
   const refreshBackups = useCallback(async () => {
     if (!game) return;
     try {
-      setBackups(await api.listSaveBackups(game.id));
+      const next = await api.listSaveBackups(game.id);
+      if (alive.current) setBackups(next);
     } catch {
-      setBackups([]);
+      if (alive.current) setBackups([]);
     }
   }, [game?.id]);
 
   useEffect(() => {
     void refreshBackups();
   }, [refreshBackups]);
-
-  if (!game) return null;
 
   const processLike = isProcessTarget(game.exePath);
 
@@ -185,7 +186,7 @@ export function GameDetail() {
   };
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden">
+    <div className="game-detail relative flex h-full flex-col overflow-hidden">
       {/* 全幅背景（只用封面，不用图标） */}
       <div className="absolute inset-0">
         {cover ? (
@@ -195,7 +196,7 @@ export function GameDetail() {
             className="h-full w-full"
             style={{
               background:
-                "linear-gradient(135deg, rgba(var(--primary-rgb), .22), rgba(var(--accent-rgb), .14) 50%, var(--bg))",
+                "linear-gradient(135deg, rgba(var(--primary-rgb), .22), rgba(var(--accent-rgb), .14) 50%, var(--hero-bg))",
             }}
           />
         )}
@@ -203,7 +204,7 @@ export function GameDetail() {
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(180deg, rgba(5,9,18,.06) 0%, rgba(5,9,18,.2) 36%, rgba(5,9,18,.58) 64%, color-mix(in srgb, var(--bg) 88%, transparent) 84%, var(--bg) 100%)",
+              "linear-gradient(180deg, rgba(5,9,18,.06) 0%, rgba(5,9,18,.2) 36%, rgba(5,9,18,.58) 64%, rgba(8,13,26,.88) 84%, var(--hero-bg) 100%)",
           }}
         />
       </div>
@@ -219,7 +220,7 @@ export function GameDetail() {
         }}
       >
         {/* 底部留出渐隐高度，滚动到底后仍能完整阅读和操作最后一项。 */}
-        <div className="flex min-h-full flex-col justify-end px-6 pb-12 pt-20 sm:px-10">
+        <div className="detail-content flex min-h-full flex-col justify-end pb-12 pt-20">
           {/* 标题 + 图标 */}
           <div className="flex items-center gap-3">
             {icon && (
@@ -237,7 +238,8 @@ export function GameDetail() {
             )}
             <div className="min-w-0">
               <h1
-                className="m-0 truncate text-3xl font-semibold text-white"
+                className="game-title m-0 text-3xl font-semibold text-white"
+                title={game.title}
                 style={{ textShadow: "0 2px 24px rgba(0,0,0,.65)" }}
               >
                 {game.title}
@@ -270,10 +272,19 @@ export function GameDetail() {
             </div>
           </div>
 
-          {/* 详情区：鼠标移入才显示 */}
-          <div className="group/details mt-4">
-            <div className="pointer-events-none translate-y-2 opacity-0 transition-all duration-200 group-hover/details:pointer-events-auto group-hover/details:translate-y-0 group-hover/details:opacity-100">
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {/* 保留悬停预览，也允许键盘和触屏固定展开。 */}
+          <div className="detail-disclosure mt-4" data-expanded={detailsOpen}>
+            <button
+              className="btn detail-toggle"
+              aria-expanded={detailsOpen}
+              aria-controls="game-details"
+              onClick={() => setDetailsOpen((open) => !open)}
+            >
+              {detailsOpen ? "收起详情" : "游戏详情"}
+              <ChevronDown size={14} aria-hidden="true" />
+            </button>
+            <div id="game-details" className="detail-panels mt-3">
+              <div className="detail-grid grid grid-cols-1 gap-4">
                 {game.summary && (
                   <section className="rounded-xl p-4 text-[12px] leading-5" style={PANEL_STYLE}>
                     <p className="m-0 mb-1.5 text-[11px] font-medium" style={{ color: "rgba(160,180,210,.9)" }}>
@@ -328,7 +339,7 @@ export function GameDetail() {
                   </div>
 
                   {game.savePaths.length === 0 ? (
-                    <p className="hint m-0">还没设置存档目录。点「编辑」添加后，就能一键备份存档、坏了再还原。</p>
+                    <p className="m-0 text-white/75 leading-relaxed">还没设置存档目录。点「编辑」添加后，就能一键备份存档、坏了再还原。</p>
                   ) : (
                     <div className="flex flex-wrap items-center gap-2">
                       <button className="btn btn-primary !px-4 !py-1.5 text-[11px]" onClick={() => void doBackup()} disabled={backupBusy}>
@@ -382,8 +393,9 @@ export function GameDetail() {
               </div>
 
               {fixTime && (
-                <div className="mt-4 flex items-center gap-2 rounded-xl p-3" style={{ background: PANEL_BG, border: "1px solid rgba(255,255,255,.1)" }}>
+                <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl p-3" style={{ background: PANEL_BG, border: "1px solid rgba(255,255,255,.1)" }}>
                   <input
+                    aria-label="累计游玩分钟数"
                     className="input max-w-[180px]"
                     type="number"
                     min={0}
@@ -403,7 +415,7 @@ export function GameDetail() {
               <div className="mt-4 flex justify-end">
                 {confirmDelete ? (
                   <div
-                    className="flex items-center gap-2 rounded-xl px-3 py-2"
+                    className="flex flex-wrap items-center gap-2 rounded-xl px-3 py-2"
                     style={{ background: "rgba(244,63,94,.14)", border: "1px solid rgba(244,63,94,.4)" }}
                   >
                     <span className="text-[11px] text-white/85">确认从库中移除？本地文件不会动。</span>
@@ -432,22 +444,25 @@ export function GameDetail() {
 
       {/* 独立底栏：详情单独滚动，操作与统计始终固定在展示面板底部。 */}
       <footer
-        className="relative z-10 shrink-0 overflow-hidden px-6 pb-7 sm:px-10"
+        className="detail-footer relative z-10 shrink-0"
         aria-label="游戏操作与信息"
         // 与滚动区预留相同的滚动条宽度，保持内容左右边界一致。
         style={{ scrollbarGutter: "stable" }}
       >
         {/* 游戏操作 */}
-        <div className="flex flex-wrap items-center gap-2 py-4">
+        <div className="detail-actions flex flex-wrap items-center gap-2 py-4">
           <button
             className="btn btn-primary !px-7 !py-2.5 text-[13px]"
-            disabled={Boolean(running)}
-            onClick={() => void launch(game.id)}
+            disabled={Boolean(running) || launchBusy}
+            onClick={async () => {
+              setLaunchBusy(true);
+              try { await launch(game.id); } finally { setLaunchBusy(false); }
+            }}
           >
             <Play size={16} fill="currentColor" />
             {running
               ? `运行中 ${formatTimer(elapsed)}`
-              : processLike
+              : launchBusy ? "正在打开…" : processLike
                 ? "开始游戏"
                 : "用默认程序打开"}
           </button>
@@ -455,14 +470,16 @@ export function GameDetail() {
             className="btn btn-icon-glass"
             onClick={() => void toggleFavorite(game.id)}
             title={game.favorite ? "取消收藏" : "加入收藏"}
+            aria-label={game.favorite ? "取消收藏" : "加入收藏"}
+            aria-pressed={game.favorite}
             style={{ color: game.favorite ? "#ffd166" : undefined }}
           >
             <Star size={15} fill={game.favorite ? "currentColor" : "none"} />
           </button>
-          <button className="btn btn-icon-glass" onClick={() => openEdit(game)} title="编辑">
+          <button className="btn btn-icon-glass" onClick={() => openEdit(game)} title="编辑" aria-label="编辑项目">
             <Pencil size={15} />
           </button>
-          <button className="btn btn-icon-glass" onClick={openMeta} title="联网补全封面和信息">
+          <button className="btn btn-icon-glass" onClick={openMeta} title="联网补全封面和信息" aria-label="联网补全封面和信息">
             <CloudDownload size={15} />
           </button>
           <button
@@ -470,13 +487,14 @@ export function GameDetail() {
             onClick={() => void applyAutofill()}
             disabled={coverBusy}
             title="自动补全：读程序信息 + 提取图标 + 找本地封面"
+            aria-label={coverBusy ? "正在自动补全" : "自动补全"}
           >
             <Sparkles size={15} />
           </button>
         </div>
 
         {/* 游戏信息 */}
-        <div className="flex flex-wrap items-center gap-x-8 gap-y-3 py-3">
+        <div className="detail-stats flex flex-wrap items-center gap-x-8 gap-y-3 py-3">
           <Stat icon={<Clock size={14} />} label="最近游玩" value={formatRelative(game.lastPlayedAt)} />
           <Stat
             icon={<Play size={14} />}
