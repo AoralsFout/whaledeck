@@ -1,3 +1,7 @@
+//! 数据仓库：JSON 原子写入、写入前备份、损坏隔离与回退、pending 会话。
+//!
+//! 所有持久化文件都经过这里；调用方负责决定何时写、写什么。
+//! 对应文档：docs/数据模型.md「写入策略」、docs/后端实现.md「存储实现」。
 use crate::models::{now_ms, Game, Session, Settings};
 use std::fs;
 use std::io::Write;
@@ -11,6 +15,7 @@ pub struct Store {
 }
 
 impl Store {
+    /// 以数据根目录创建仓库；目录创建由 `ensure_dirs` 完成。
     pub fn new(root: PathBuf) -> Self {
         Self { root }
     }
@@ -52,6 +57,7 @@ impl Store {
         self.data_dir().join("pending_session.json")
     }
 
+    /// 创建数据、备份、封面、图标与背景目录；已存在时忽略。
     pub fn ensure_dirs(&self) -> Result<(), String> {
         for dir in [
             self.data_dir(),
@@ -60,8 +66,7 @@ impl Store {
             self.icons_dir(),
             self.backgrounds_dir(),
         ] {
-            fs::create_dir_all(&dir)
-                .map_err(|e| format!("创建目录失败 {}：{e}", dir.display()))?;
+            fs::create_dir_all(&dir).map_err(|e| format!("创建目录失败 {}：{e}", dir.display()))?;
         }
         Ok(())
     }
@@ -74,10 +79,7 @@ impl Store {
         }
         if primary.exists() {
             // 主文件存在但解析失败：保留现场便于排查
-            let broken = primary.with_file_name(format!(
-                "games.corrupt.{}",
-                now_ms()
-            ));
+            let broken = primary.with_file_name(format!("games.corrupt.{}", now_ms()));
             let _ = fs::rename(&primary, &broken);
         }
         if let Some(latest) = self.latest_backup() {
@@ -100,6 +102,9 @@ impl Store {
         serde_json::from_value::<Vec<Game>>(arr).ok()
     }
 
+    /// 写入游戏库：先备份旧文件，再以 `{schemaVersion, games}` 原子替换。
+    ///
+    /// 备份失败不会阻止写入；写盘失败时正式文件保持原样。
     pub fn save_games(&self, games: &[Game]) -> Result<(), String> {
         self.ensure_dirs()?;
         let path = self.games_path();
@@ -131,6 +136,7 @@ impl Store {
         atomic_write(&path, &bytes)
     }
 
+    /// 写入 pending 会话；由启动流程读取并按时间差补算。
     pub fn write_pending(&self, session: &Session) -> Result<(), String> {
         self.ensure_dirs()?;
         let bytes = serde_json::to_vec_pretty(session).map_err(|e| e.to_string())?;
@@ -146,11 +152,9 @@ impl Store {
         let _ = fs::remove_file(self.pending_path());
     }
 
+    /// 备份文件名格式为 `<stem>.<毫秒>.json`；复制成功后按时间戳裁剪到 5 份。
     fn backup(&self, path: &Path) -> Result<(), String> {
-        let stem = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("data");
+        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("data");
         let dest = self.backup_dir().join(format!("{stem}.{}.json", now_ms()));
         fs::copy(path, &dest).map_err(|e| e.to_string())?;
         self.prune_backups(stem, BACKUP_KEEP);
@@ -215,6 +219,7 @@ impl Store {
     }
 }
 
+/// 同目录临时文件 → flush → sync_all → rename；避免半写文件覆盖正式数据。
 pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let tmp = path.with_file_name(format!(
         "{}.tmp",

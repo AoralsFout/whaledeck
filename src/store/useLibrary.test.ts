@@ -1,3 +1,8 @@
+/**
+ * @file 游戏写入与批量加入的测试：写后更新、失败保留、去重、串行与重试。
+ *
+ * 对应文档：docs/前端实现.md §2.1、§6。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../lib/ipc";
 import { newGameDraft, type ScanEntry } from "../types";

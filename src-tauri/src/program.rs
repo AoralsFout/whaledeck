@@ -1,3 +1,7 @@
+//! 程序版本资源：读取 exe 的 ProductName / FileDescription / CompanyName / FileVersion。
+//!
+//! 没有版本资源或读取失败时返回错误，调用方（autofill）静默跳过。
+//! 对应文档：docs/后端实现.md §8.3。
 use std::collections::HashMap;
 
 use windows_sys::Win32::Storage::FileSystem::{
@@ -21,6 +25,8 @@ pub struct ProgramInfo {
 }
 
 impl ProgramInfo {
+    /// 仅测试使用：判断版本资源是否全部为空。
+    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.product.is_empty()
             && self.description.is_empty()
@@ -29,25 +35,15 @@ impl ProgramInfo {
     }
 }
 
-fn query_string(
-    block: &[u8],
-    language: u16,
-    codepage: u16,
-    key: &str,
-) -> Option<String> {
+/// 按语言/代码页查询单个字符串字段；空值视为不存在。
+fn query_string(block: &[u8], language: u16, codepage: u16, key: &str) -> Option<String> {
     let sub = to_wide(&format!(
         "\\StringFileInfo\\{language:04x}{codepage:04x}\\{key}"
     ));
     let mut ptr: *mut std::ffi::c_void = std::ptr::null_mut();
     let mut len: u32 = 0;
-    let ok = unsafe {
-        VerQueryValueW(
-            block.as_ptr() as *const _,
-            sub.as_ptr(),
-            &mut ptr,
-            &mut len,
-        )
-    };
+    let ok =
+        unsafe { VerQueryValueW(block.as_ptr() as *const _, sub.as_ptr(), &mut ptr, &mut len) };
     if ok == 0 || ptr.is_null() || len == 0 {
         return None;
     }
@@ -72,9 +68,7 @@ pub fn read_version_info(path: &str) -> Result<ProgramInfo, String> {
     }
 
     let mut block = vec![0u8; size as usize];
-    let ok = unsafe {
-        GetFileVersionInfoW(wide.as_ptr(), 0, size, block.as_mut_ptr() as *mut _)
-    };
+    let ok = unsafe { GetFileVersionInfoW(wide.as_ptr(), 0, size, block.as_mut_ptr() as *mut _) };
     if ok == 0 {
         return Err("读取版本信息失败".into());
     }
@@ -84,14 +78,8 @@ pub fn read_version_info(path: &str) -> Result<ProgramInfo, String> {
     let sub = to_wide("\\VarFileInfo\\Translation");
     let mut ptr: *mut std::ffi::c_void = std::ptr::null_mut();
     let mut len: u32 = 0;
-    let found = unsafe {
-        VerQueryValueW(
-            block.as_ptr() as *const _,
-            sub.as_ptr(),
-            &mut ptr,
-            &mut len,
-        )
-    };
+    let found =
+        unsafe { VerQueryValueW(block.as_ptr() as *const _, sub.as_ptr(), &mut ptr, &mut len) };
     if found != 0 && !ptr.is_null() && len >= 4 {
         let data = unsafe { std::slice::from_raw_parts(ptr as *const u16, 2) };
         combos.push((data[0], data[1]));
@@ -141,10 +129,7 @@ mod tests {
     fn reads_version_info_from_system_exe() {
         // 系统记事本通常带版本资源；精简系统可能没有，失败不 panic
         if let Ok(info) = read_version_info("C:\\Windows\\System32\\notepad.exe") {
-            assert!(
-                !info.is_empty(),
-                "记事本的版本信息不应全为空"
-            );
+            assert!(!info.is_empty(), "记事本的版本信息不应全为空");
         }
     }
 

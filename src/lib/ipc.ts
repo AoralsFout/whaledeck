@@ -1,3 +1,9 @@
+/**
+ * @file Tauri IPC 的唯一封装：命令名、参数与事件的集中映射。
+ *
+ * 组件与 store 只调用这里的 `api`，不直接 `invoke`；命令签名见 docs/接口契约.md。
+ * 对应文档：docs/接口契约.md「前端封装映射」。
+ */
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
@@ -13,6 +19,7 @@ import type {
   StoppedPayload,
 } from "../types";
 
+/** 与 Rust 命令一一对应的调用表；新增命令时同步 docs/接口契约.md。 */
 export const api = {
   listGames: () => invoke<Game[]>("list_games"),
   saveGame: (game: Game) => invoke<Game>("save_game", { game }),

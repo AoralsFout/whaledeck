@@ -1,3 +1,8 @@
+/**
+ * @file 展示格式化的测试：时长、计时、相对时间与路径工具。
+ *
+ * 对应文档：docs/前端实现.md §5。
+ */
 import { describe, expect, it } from "vitest";
 import {
   dirFromPath,

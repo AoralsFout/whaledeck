@@ -1,3 +1,9 @@
+/**
+ * @file 游戏详情：封面背景、可展开信息、固定操作栏与统计栏。
+ *
+ * 由 App 以游戏 id 作为 key 挂载，切换游戏即重置本地计时/备份/确认状态。
+ * 对应文档：docs/界面与交互.md §2.2、docs/前端实现.md §3.1。
+ */
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import {
@@ -64,6 +70,11 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
+/**
+ * 详情主视图。
+ *
+ * 运行计时只做展示，真正结算在 Rust 监控线程；备份状态由独立 store 管理。
+ */
 export function GameDetail({ game }: { game: Game }) {
   const running = useLibrary((s) => s.sessions.find((x) => x.gameId === game.id));
   const openEdit = useLibrary((s) => s.openEdit);

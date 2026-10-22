@@ -1,3 +1,7 @@
+//! 应用装配层：初始化数据目录、恢复异常会话、注册 Tauri 命令。
+//!
+//! 这里只负责「把各模块接起来」，不实现具体业务算法。
+//! 对应文档：docs/系统架构.md、docs/后端实现.md「模块与装配」。
 mod commands;
 mod cover;
 mod launcher;
@@ -11,6 +15,9 @@ use commands::AppState;
 use store::Store;
 use tauri::Manager;
 
+/// 初始化数据目录、载入库与设置、补算异常会话，并注册共享状态。
+///
+/// pending 补算限制 12 小时，避免把误写的超长会话累加进时长。
 fn init_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let root = app.path().app_data_dir()?;
     let store = Store::new(root);
@@ -40,6 +47,7 @@ fn init_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// 构建 Tauri 应用并注册全部命令；窗口配置与插件在 `tauri.conf.json` / 此处装配。
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())

@@ -1,3 +1,8 @@
+/**
+ * @file Vite / Vitest 配置：固定端口、忽略 Rust 构建目录、node 环境单测。
+ *
+ * 对应文档：docs/工程规范.md「环境与命令」。
+ */
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";

@@ -1,3 +1,10 @@
+/**
+ * @file 展示格式化：时长、计时、相对时间、路径与文件大小。
+ *
+ * 所有面向用户的时间/大小文案都从这里产出，避免各组件各写一套。
+ * 对应文档：docs/前端实现.md「格式化规则」。
+ */
+
 /** 秒 → 人类可读时长 */
 export function formatPlaytime(sec: number): string {
   if (sec <= 0) return "未玩过";
@@ -41,6 +48,7 @@ export function formatRelative(ms: number | null): string {
   return formatDate(ms);
 }
 
+/** Unix ms → 本地日期 YYYY-MM-DD。 */
 export function formatDate(ms: number): string {
   const d = new Date(ms);
   const y = d.getFullYear();

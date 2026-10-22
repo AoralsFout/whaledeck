@@ -1,3 +1,10 @@
+/**
+ * @file 全局游戏库状态：初始化、视图状态、写入、批量加入、启动与结算。
+ *
+ * 持久化写入统一「先写盘、成功后更新内存」，并只接受后端返回的记录；
+ * 批量加入通过队列串行化，避免并发导致重复入库。
+ * 对应文档：docs/前端实现.md「全局状态：useLibrary」。
+ */
 import { create } from "zustand";
 import { api } from "../lib/ipc";
 import { filterGames, gamePathKey } from "../lib/library";
@@ -68,6 +75,7 @@ type LibraryState = {
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
+/** 合并后端返回的完整记录：已存在按 id 替换，否则追加。 */
 function mergeSavedGame(games: Game[], saved: Game): Game[] {
   return games.some((game) => game.id === saved.id)
     ? games.map((game) => game.id === saved.id ? saved : game)
@@ -82,6 +90,11 @@ export const useLibrary = create<LibraryState>((set, get) => {
     return saved;
   };
 
+  /**
+   * 顺序加入一批扫描项：成功一项就立即入库；首个失败停止并保留剩余项。
+   *
+   * 去重基于调用时的当前库，因此同一批次中刚加入的项也会让后续重复路径变成 skipped。
+   */
   const runBatch = async (entries: ScanEntry[]): Promise<BatchAddResult> => {
     const result: BatchAddResult = { added: [], skipped: [], remaining: [], error: null };
     const alreadyAdded = (entry: ScanEntry) => get().games.some(
@@ -200,6 +213,7 @@ export const useLibrary = create<LibraryState>((set, get) => {
       }
     },
 
+    // 多个扫描批次共用一条队列；即使前一批失败，后续批次仍会继续。
     addScannedGames: (entries) => {
       const selected = [...entries];
       const batch = additionsQueue.then(() => runBatch(selected));

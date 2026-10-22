@@ -1,3 +1,9 @@
+/**
+ * @file 前端类型与纯函数：与 Rust 模型保持 camelCase 对齐。
+ *
+ * 这里是前后端共享形状的唯一前端来源；字段语义见 docs/数据模型.md。
+ * 对应文档：docs/数据模型.md「实体」、docs/接口契约.md。
+ */
 export type Game = {
   id: string;
   title: string;
@@ -104,6 +110,7 @@ export type AutofillResult = {
   filled: string[];
 };
 
+/** 新增记录的空白草稿；字段默认值必须与 Rust 侧 serde 默认值一致。 */
 export function newGameDraft(): Game {
   return {
     id: "",

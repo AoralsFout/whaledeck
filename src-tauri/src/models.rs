@@ -1,3 +1,7 @@
+//! 序列化模型：与前端 camelCase 对齐的实体与传输结构。
+//!
+//! 新增字段必须带 `#[serde(default)]` 以兼容旧数据；字段语义见 docs/数据模型.md。
+//! 对应文档：docs/数据模型.md「实体」。
 use serde::{Deserialize, Serialize};
 
 /// 数据文件 schema 版本，用于将来迁移。
@@ -166,6 +170,7 @@ pub struct StoppedPayload {
     pub playtime_sec: u64,
 }
 
+/// 当前 Unix 毫秒；系统时间异常时返回 0，调用方需容忍该退化值。
 pub fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

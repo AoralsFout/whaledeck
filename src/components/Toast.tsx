@@ -1,3 +1,9 @@
+/**
+ * @file 全局通知：单条 Toast，自动消失，弹窗打开时挂到对话框内。
+ *
+ * 文案由 store 提供；这里只负责图标、状态色、可访问性与挂载位置。
+ * 对应文档：docs/界面与交互.md §4.4。
+ */
 import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useLibrary } from "../store/useLibrary";
@@ -8,6 +14,7 @@ const STYLE = {
   info: { icon: Info, color: "var(--primary)", border: "rgba(var(--primary-rgb),.4)" },
 } as const;
 
+/** 渲染当前 Toast；弹窗打开时挂到 dialog 内，避免被顶层遮住。 */
 export function Toast() {
   const toast = useLibrary((s) => s.toast);
   const hide = useLibrary((s) => s.hideToast);

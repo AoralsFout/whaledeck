@@ -1,3 +1,9 @@
+/**
+ * @file 联网检索的独立 store：请求版本、加载态与生命周期失效。
+ *
+ * 每次打开弹窗创建一个实例；只有最新请求能写结果/发通知，关闭即整体失效。
+ * 对应文档：docs/前端实现.md「对话框级 store」、docs/系统架构.md §5.3。
+ */
 import { createStore } from "zustand/vanilla";
 import type { MetaItem, MetaSource } from "../types";
 
@@ -38,6 +44,7 @@ export function createMetaSearch(initialKeyword: string, { search, notify }: Met
       version += 1;
       set({ items: [], loading: false, searched: false });
     },
+    // 每个有效提交拿到独立版本号，迟到响应只能落空，不能改写最新状态。
     runSearch: async () => {
       const { source, keyword } = get();
       const text = keyword.trim();

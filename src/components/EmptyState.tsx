@@ -1,5 +1,11 @@
+/**
+ * @file 空态：区分「库为空」与「筛选无结果」，并提供对应主操作。
+ *
+ * 对应文档：docs/界面与交互.md §5、docs/前端实现.md §3。
+ */
 import { Plus } from "lucide-react";
 
+/** filtered 为真表示「有库但筛选无结果」，此时主按钮是清除筛选。 */
 export function EmptyState({ onAdd, filtered = false, onReset }: { onAdd: () => void; filtered?: boolean; onReset?: () => void }) {
   return (
     <div className="empty-state flex h-full flex-col items-center justify-center gap-5 overflow-y-auto px-6 py-20">

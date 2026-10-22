@@ -1,3 +1,7 @@
+//! 目标启动与运行判定：进程启动、Shell 打开、参数拆分、进程存活检测。
+//!
+//! 进程目标额外进程组启动，避免被本程序牵连；运行判定由监控线程复用。
+//! 对应文档：docs/后端实现.md「启动与计时」。
 use crate::models::{Game, Session};
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
@@ -40,6 +44,7 @@ pub fn is_process_target(path: &str) -> bool {
     matches!(ext.as_str(), "exe" | "bat" | "cmd" | "com")
 }
 
+/// 解析工作目录：显式配置优先，否则取目标父目录（目标在根目录时用当前目录）。
 fn resolve_work_dir(game: &Game) -> PathBuf {
     if game.work_dir.trim().is_empty() {
         Path::new(&game.exe_path)
@@ -149,7 +154,7 @@ pub fn is_running(session: &Session, game: &Game) -> bool {
         if !exe_name.is_empty() && name == exe_name {
             return true;
         }
-        if extras.iter().any(|e| *e == name) {
+        if extras.contains(&name) {
             return true;
         }
     }

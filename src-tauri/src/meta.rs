@@ -1,3 +1,7 @@
+//! 联网元数据：Bangumi / VNDB / 月幕 检索、响应归一化与封面下载。
+//!
+//! 只使用公开接口，用户主动触发；图片只允许三家图床且限制大小。
+//! 对应文档：docs/后端实现.md §9、docs/产品定义.md §6。
 use crate::models::MetaItem;
 use serde_json::Value;
 use std::sync::Mutex;
@@ -49,6 +53,7 @@ pub fn is_allowed_image_url(url: &str) -> bool {
         || url.starts_with("https://cdn.ymgal.games/")
 }
 
+/// 按来源分发检索；关键词为空直接报错，不发起请求。
 pub async fn search(source: &str, keyword: &str) -> Result<Vec<MetaItem>, String> {
     let keyword = keyword.trim();
     if keyword.is_empty() {
@@ -75,12 +80,20 @@ fn parse_bangumi(value: &Value) -> Vec<MetaItem> {
                 .unwrap_or_default();
             let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
             let name_cn = item.get("name_cn").and_then(|v| v.as_str()).unwrap_or("");
-            let title = if name_cn.trim().is_empty() { name } else { name_cn };
+            let title = if name_cn.trim().is_empty() {
+                name
+            } else {
+                name_cn
+            };
             MetaItem {
                 source: "bangumi".into(),
                 id,
                 title: title.to_string(),
-                subtitle: if title == name { String::new() } else { name.to_string() },
+                subtitle: if title == name {
+                    String::new()
+                } else {
+                    name.to_string()
+                },
                 cover_url: item
                     .get("images")
                     .and_then(|i| i.get("large"))
@@ -201,6 +214,7 @@ async fn search_vndb(keyword: &str) -> Result<Vec<MetaItem>, String> {
     Ok(parse_vndb(&value))
 }
 
+/// 获取月幕 token：进程内缓存 50 分钟；失败时返回可展示的中文错误。
 async fn ymgal_token() -> Result<String, String> {
     if let Some((token, obtained)) = YMGAL_TOKEN.lock().unwrap().clone() {
         if obtained.elapsed() < YMGAL_TOKEN_TTL {
@@ -239,8 +253,15 @@ fn parse_ymgal(value: &Value) -> Vec<MetaItem> {
     list.iter()
         .map(|item| {
             let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            let chinese = item.get("chineseName").and_then(|v| v.as_str()).unwrap_or("");
-            let title = if chinese.trim().is_empty() { name } else { chinese };
+            let chinese = item
+                .get("chineseName")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let title = if chinese.trim().is_empty() {
+                name
+            } else {
+                chinese
+            };
             let score = item
                 .get("score")
                 .and_then(|v| v.as_str())
@@ -254,7 +275,11 @@ fn parse_ymgal(value: &Value) -> Vec<MetaItem> {
                     .map(|v| v.to_string())
                     .unwrap_or_default(),
                 title: title.to_string(),
-                subtitle: if title == name { String::new() } else { name.to_string() },
+                subtitle: if title == name {
+                    String::new()
+                } else {
+                    name.to_string()
+                },
                 cover_url: item
                     .get("mainImg")
                     .and_then(|v| v.as_str())
@@ -353,7 +378,9 @@ mod tests {
 
     #[test]
     fn only_allows_known_image_hosts() {
-        assert!(is_allowed_image_url("https://lain.bgm.tv/pic/cover/l/1.jpg"));
+        assert!(is_allowed_image_url(
+            "https://lain.bgm.tv/pic/cover/l/1.jpg"
+        ));
         assert!(is_allowed_image_url("https://t.vndb.org/cv/1.jpg"));
         assert!(is_allowed_image_url("https://cdn.ymgal.games/a.webp"));
         assert!(!is_allowed_image_url("https://evil.example.com/a.jpg"));

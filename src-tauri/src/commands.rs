@@ -1,3 +1,7 @@
+//! Tauri 命令层：游戏库、启动与监控、扫描、资源、设置、存档备份、迁移与自动补全。
+//!
+//! 命令只做参数校验与编排，具体算法委托给 launcher / store / cover / meta / savegame。
+//! 对应文档：docs/接口契约.md（签名）、docs/后端实现.md（实现与限制）。
 use crate::cover;
 use crate::launcher;
 use crate::meta;
@@ -12,6 +16,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
+/// 应用共享状态：游戏库、设置与运行会话各自加锁，磁盘写入统一走 `store`。
 pub struct AppState {
     pub store: Store,
     pub games: Mutex<Vec<Game>>,
@@ -41,6 +46,7 @@ fn remove_old_assets(dir: &Path, prefix: &str, keep: Option<&str>) {
     }
 }
 
+/// 按 id 克隆记录；找不到时返回可直接展示的错误，不暴露锁内部状态。
 fn find_game(state: &AppState, id: &str) -> Result<Game, String> {
     state
         .games
@@ -64,6 +70,7 @@ pub fn save_game(state: State<'_, AppState>, game: Game) -> Result<Game, String>
     save_game_record(state.inner(), game)
 }
 
+/// 校验并写入一条游戏记录：先写盘成功，再替换内存，失败时内存保持旧值。
 fn save_game_record(state: &AppState, mut game: Game) -> Result<Game, String> {
     if game.title.trim().is_empty() {
         return Err("名称不能为空".into());
@@ -94,6 +101,7 @@ fn save_game_record(state: &AppState, mut game: Game) -> Result<Game, String> {
     Ok(game)
 }
 
+/// 删除记录；运行中的游戏必须先退出，避免计时线程写回已删除的记录。
 #[tauri::command]
 pub fn delete_game(state: State<'_, AppState>, id: String) -> Result<bool, String> {
     {
@@ -114,6 +122,7 @@ pub fn delete_game(state: State<'_, AppState>, id: String) -> Result<bool, Strin
 
 // ---------- 启动与计时 ----------
 
+/// 启动目标：进程目标创建会话、写 pending 并启动监控；其余交给 Shell 打开。
 #[tauri::command]
 pub fn launch_game(
     app: AppHandle,
@@ -160,6 +169,9 @@ pub fn launch_game(
     Ok(LaunchResult { pid, started_at })
 }
 
+/// 每个会话一个采样线程：2 秒一次，连续 3 次未命中判定退出并结算。
+///
+/// 线程发现会话被移除（例如记录被其他路径清理）时直接退出，避免重复结算。
 fn monitor_process(app: AppHandle, session: Session, game: Game) {
     std::thread::spawn(move || {
         let mut misses = 0u8;
@@ -219,6 +231,7 @@ pub fn get_sessions(state: State<'_, AppState>) -> Vec<Session> {
     state.sessions.lock().unwrap().clone()
 }
 
+/// 手动修正累计时长（秒）；直接覆盖，不做增量。
 #[tauri::command]
 pub fn reset_playtime(state: State<'_, AppState>, id: String, sec: u64) -> Result<Game, String> {
     let mut games = state.games.lock().unwrap();
@@ -273,6 +286,7 @@ pub fn pick_image(app: AppHandle, kind: String) -> Option<String> {
 
 // ---------- 文件夹扫描 ----------
 
+/// 递归收集 exe：限制深度与数量，跳过隐藏项、系统目录与依赖目录。
 fn scan_walk(dir: &Path, depth: u32, out: &mut Vec<ScanEntry>) {
     if depth > SCAN_MAX_DEPTH || out.len() >= SCAN_MAX_FILES {
         return;
@@ -318,6 +332,7 @@ fn scan_walk(dir: &Path, depth: u32, out: &mut Vec<ScanEntry>) {
     }
 }
 
+/// 扫描入口：校验目录、收集候选、按路径排序并截断到上限。
 #[tauri::command]
 pub fn scan_folder(path: String) -> Result<Vec<ScanEntry>, String> {
     let root = PathBuf::from(path.trim());
@@ -326,7 +341,7 @@ pub fn scan_folder(path: String) -> Result<Vec<ScanEntry>, String> {
     }
     let mut out = Vec::new();
     scan_walk(&root, 0, &mut out);
-    out.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
+    out.sort_by_key(|a| a.path.to_lowercase());
     out.truncate(SCAN_MAX_FILES);
     Ok(out)
 }
@@ -344,6 +359,7 @@ pub fn import_cover(state: State<'_, AppState>, id: String, src: String) -> Resu
     Ok(name)
 }
 
+/// 复制背景图并立即把文件名写回设置，保证重启后仍生效。
 #[tauri::command]
 pub fn import_background(state: State<'_, AppState>, src: String) -> Result<String, String> {
     let ext = lower_ext(&src);
@@ -395,6 +411,7 @@ pub fn open_data_dir(state: State<'_, AppState>) -> Result<(), String> {
 
 // ---------- 存档备份 ----------
 
+/// 打包该游戏配置的存档目录；空目录/不存在会在 savegame 内报错。
 #[tauri::command]
 pub fn backup_saves(state: State<'_, AppState>, id: String) -> Result<SaveBackup, String> {
     let game = find_game(&state, &id)?;
@@ -466,6 +483,7 @@ fn copy_dir_files(from: &Path, to: &Path) {
     }
 }
 
+/// 导出整库：JSON 含游戏与设置；封面顶层文件复制到同级 `<stem>.covers/`。
 #[tauri::command]
 pub fn export_library(app: AppHandle, state: State<'_, AppState>) -> Result<bool, String> {
     let Some(target) = app
@@ -491,6 +509,7 @@ pub fn export_library(app: AppHandle, state: State<'_, AppState>) -> Result<bool
     Ok(true)
 }
 
+/// 导入整库：整体替换游戏与设置并复制封面；不合并、不清理旧资源。
 #[tauri::command]
 pub fn import_library(app: AppHandle, state: State<'_, AppState>) -> Result<usize, String> {
     let Some(source) = app
@@ -527,6 +546,7 @@ pub async fn search_meta(source: String, keyword: String) -> Result<Vec<MetaItem
     meta::search(&source, &keyword).await
 }
 
+/// 下载封面并合并元数据：只覆盖非空字段，来源与来源 ID 总是写入。
 #[tauri::command]
 pub async fn apply_meta(
     state: State<'_, AppState>,
@@ -540,8 +560,7 @@ pub async fn apply_meta(
             let name = format!("{game_id}.{ext}");
             let dir = state.store.covers_dir();
             std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-            std::fs::write(dir.join(&name), bytes)
-                .map_err(|e| format!("保存封面失败：{e}"))?;
+            std::fs::write(dir.join(&name), bytes).map_err(|e| format!("保存封面失败：{e}"))?;
             remove_old_assets(&dir, &format!("{game_id}."), Some(&name));
             cover_file = Some(name);
         }
@@ -586,6 +605,7 @@ pub struct AutofillResult {
     pub filled: Vec<String>,
 }
 
+/// 自动补全：版本资源 + 图标 + 本地封面，全部本地完成，最后一次性写盘。
 #[tauri::command]
 pub fn autofill(state: State<'_, AppState>, game_id: String) -> Result<AutofillResult, String> {
     let game = find_game(&state, &game_id)?;
@@ -714,7 +734,10 @@ mod game_write_tests {
     fn failed_insert_does_not_change_memory_and_can_retry() {
         let dir = tempfile::tempdir().unwrap();
         let state = state(dir.path().to_path_buf(), vec![game("a", "已有游戏")]);
-        state.store.save_games(&state.games.lock().unwrap()).unwrap();
+        state
+            .store
+            .save_games(&state.games.lock().unwrap())
+            .unwrap();
         let blocked = state.store.games_path().with_extension("json.tmp");
         std::fs::create_dir(&blocked).unwrap();
 
@@ -732,7 +755,10 @@ mod game_write_tests {
     fn failed_update_preserves_original_memory_and_disk() {
         let dir = tempfile::tempdir().unwrap();
         let state = state(dir.path().to_path_buf(), vec![game("a", "原名称")]);
-        state.store.save_games(&state.games.lock().unwrap()).unwrap();
+        state
+            .store
+            .save_games(&state.games.lock().unwrap())
+            .unwrap();
         let blocked = state.store.games_path().with_extension("json.tmp");
         std::fs::create_dir(&blocked).unwrap();
 

@@ -1,3 +1,9 @@
+/**
+ * @file 设置对话框：外观、分类、数据与关于四个标签页。
+ *
+ * 设置项即时生效并自动保存；导出/导入是覆盖操作，导入前需二次确认。
+ * 对应文档：docs/界面与交互.md §4.3、docs/前端实现.md §3。
+ */
 import { useRef, useState } from "react";
 import {
   Database,
@@ -26,6 +32,7 @@ const TABS = [
 ] as const;
 type SettingsTab = (typeof TABS)[number]["id"];
 
+/** 设置分组容器：统一标题与分组间距。 */
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="settings-section">
@@ -38,6 +45,7 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
   );
 }
 
+/** 设置面板；所有修改即时写回，关闭按钮不承担保存动作。 */
 export function SettingsPanel() {
   const settings = useLibrary((s) => s.settings);
   const updateSettings = useLibrary((s) => s.updateSettings);

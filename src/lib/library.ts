@@ -1,3 +1,9 @@
+/**
+ * @file 游戏库视图的纯函数：路径键、过滤、排序、选择与分类。
+ *
+ * 不依赖 React / store，便于单测；组件与 useLibraryView 共用同一套规则。
+ * 对应文档：docs/前端实现.md「视图规则」。
+ */
 import type { Game, NavKey, SortKey } from "../types";
 
 /** Windows 目标路径在扫描去重和写入重试时使用同一比较规则。 */
@@ -20,6 +26,7 @@ export function filterGames(games: Game[], nav: NavKey, query: string): Game[] {
   });
 }
 
+/** 排序：recent 先收藏后最近游玩；title 用中文排序规则。 */
 export function sortGames(games: Game[], sort: SortKey): Game[] {
   const list = [...games];
   switch (sort) {
