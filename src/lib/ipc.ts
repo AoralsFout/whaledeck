@@ -33,12 +33,14 @@ export const api = {
     invoke<Game>("reset_playtime", { id, sec }),
   pickEntry: () => invoke<string | null>("pick_entry"),
   pickFolder: () => invoke<string | null>("pick_folder"),
-  pickImage: (kind: "cover" | "background") =>
+  pickImage: (kind: "cover" | "background" | "icon") =>
     invoke<string | null>("pick_image", { kind }),
   scanFolder: (path: string) =>
     invoke<ScanEntry[]>("scan_folder", { path }),
   importCover: (id: string, src: string) =>
     invoke<string>("import_cover", { id, src }),
+  importIcon: (id: string, src: string) =>
+    invoke<string>("import_icon", { id, src }),
   importBackground: (src: string) =>
     invoke<string>("import_background", { src }),
   assetPath: (kind: "cover" | "background" | "icon", file: string) =>

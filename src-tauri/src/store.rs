@@ -36,6 +36,45 @@ impl Store {
         self.root.join("icons")
     }
 
+    /// 草稿图片使用独立文件，取消编辑或重复换图时不覆盖已保存的图标。
+    pub fn import_icon(&self, id: &str, src: &Path) -> Result<String, String> {
+        if id.is_empty()
+            || !id
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
+        {
+            return Err("项目标识无效，请关闭编辑窗口后重试".into());
+        }
+        let ext = src
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        if !["png", "jpg", "jpeg", "webp", "gif", "bmp", "ico"].contains(&ext.as_str()) {
+            return Err("图标格式不支持，请选择 PNG、JPG、WebP、GIF、BMP 或 ICO 图片".into());
+        }
+        let mut source = fs::File::open(src)
+            .map_err(|e| format!("读取图标失败 {}：{e}，请重新选择图片", src.display()))?;
+        let dir = self.icons_dir();
+        fs::create_dir_all(&dir).map_err(|e| format!("创建图标目录失败 {}：{e}", dir.display()))?;
+        let name = format!("{id}.{}.{ext}", uuid::Uuid::new_v4());
+        let dest = dir.join(&name);
+        let mut output = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&dest)
+            .map_err(|e| format!("创建图标失败 {}：{e}", dest.display()))?;
+        if let Err(e) = std::io::copy(&mut source, &mut output).and_then(|_| output.sync_all()) {
+            drop(output);
+            let _ = fs::remove_file(&dest);
+            return Err(format!(
+                "复制图标失败 {}：{e}，请重新选择图片",
+                dest.display()
+            ));
+        }
+        Ok(name)
+    }
+
     pub fn backgrounds_dir(&self) -> PathBuf {
         self.root.join("backgrounds")
     }
@@ -267,6 +306,80 @@ mod tests {
             release_date: String::new(),
             summary: String::new(),
         }
+    }
+
+    #[test]
+    fn importing_icons_keeps_saved_image_and_uses_fresh_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().join("library"));
+        store.ensure_dirs().unwrap();
+        let src = dir.path().join("custom.PNG");
+        fs::write(&src, b"first image").unwrap();
+        let first = store.import_icon("game-1", &src).unwrap();
+        let mut game = sample_game("game-1", "自定义图标");
+        game.icon_file = Some(first.clone());
+        store.save_games(&[game]).unwrap();
+
+        fs::write(&src, b"second image").unwrap();
+        let second = store.import_icon("game-1", &src).unwrap();
+        assert_ne!(first, second);
+        assert!(first.ends_with(".png"));
+        assert_eq!(
+            fs::read(store.icons_dir().join(&first)).unwrap(),
+            b"first image"
+        );
+        assert_eq!(
+            fs::read(store.icons_dir().join(second)).unwrap(),
+            b"second image"
+        );
+        // 未保存的新图片不会改变重新加载的记录；原图移动后副本仍可读。
+        fs::remove_file(&src).unwrap();
+        let reloaded = Store::new(store.root.clone()).load_games();
+        assert_eq!(reloaded[0].icon_file.as_deref(), Some(first.as_str()));
+    }
+
+    #[test]
+    fn icon_replacement_and_removal_survive_reload() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().join("library"));
+        store.ensure_dirs().unwrap();
+        let src = dir.path().join("custom.ico");
+        fs::write(&src, b"icon bytes").unwrap();
+        let mut game = sample_game("game-1", "自定义图标");
+        game.cover_file = Some("cover.jpg".into());
+        game.icon_file = Some(store.import_icon(&game.id, &src).unwrap());
+        store.save_games(&[game.clone()]).unwrap();
+        assert_eq!(store.load_games()[0].icon_file, game.icon_file);
+        game.icon_file = None;
+        store.save_games(&[game]).unwrap();
+        let reloaded = store.load_games();
+        assert_eq!(reloaded[0].icon_file, None);
+        assert_eq!(reloaded[0].cover_file.as_deref(), Some("cover.jpg"));
+    }
+
+    #[test]
+    fn invalid_icon_import_leaves_existing_resources_untouched() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().join("library"));
+        store.ensure_dirs().unwrap();
+        let existing = store.icons_dir().join("game.png");
+        fs::write(&existing, b"saved icon").unwrap();
+        let unsupported = dir.path().join("custom.exe");
+        fs::write(&unsupported, b"not an image").unwrap();
+        assert!(store
+            .import_icon("game", &unsupported)
+            .unwrap_err()
+            .contains("格式不支持"));
+        assert!(store
+            .import_icon("game", &dir.path().join("missing.png"))
+            .is_err());
+        for id in ["", "../escape", "C:\\escape", "a/b"] {
+            assert!(store
+                .import_icon(id, &dir.path().join("custom.png"))
+                .is_err());
+        }
+        assert_eq!(fs::read(existing).unwrap(), b"saved icon");
+        assert_eq!(fs::read_dir(store.icons_dir()).unwrap().count(), 1);
     }
 
     #[test]
