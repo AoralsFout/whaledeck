@@ -4,6 +4,8 @@
 
 WhaleDeck 是一个 Windows 桌面应用（Tauri 2 + React 19 + TypeScript），只管理你自己电脑上的游戏：不联网、不上传、不碰游戏文件本身。
 
+![WhaleDeck 界面](docs/screenshot.png)
+
 ## 功能
 
 - **游戏库**：添加任意本地 exe，自动带出名称与工作目录；分类、标签、备注、收藏、隐藏。
