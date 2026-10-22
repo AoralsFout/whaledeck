@@ -100,7 +100,6 @@ export function GameDetail({ game }: { game: Game }) {
   }));
   const { backups, busy: backupBusy, restoreTarget, selectRestore, backup: doBackup, restore: doRestore, openDirectory } = useStore(backupStore);
   useEffect(() => backupStore.getState().connect(), [backupStore]);
-  const [coverBusy, setCoverBusy] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [launchBusy, setLaunchBusy] = useState(false);
 
@@ -139,24 +138,6 @@ export function GameDetail({ game }: { game: Game }) {
       .writeText(game.exePath)
       .then(() => showToast("info", "已复制路径"))
       .catch(() => showToast("error", "复制失败"));
-  };
-
-  const applyAutofill = async () => {
-    setCoverBusy(true);
-    try {
-      const result = await api.autofill(game.id);
-      applyGame(result.game);
-      const parts: string[] = [];
-      if (result.icon) parts.push("图标");
-      if (result.cover) parts.push(`本地封面 ${result.coverDetail}`);
-      if (result.filled.length > 0) parts.push(result.filled.join("、"));
-      if (!result.cover) parts.push("封面请用联网补全或手动选择");
-      showToast(parts.length > 0 ? "success" : "info", `已补全：${parts.join(" · ")}`);
-    } catch (err) {
-      showToast("error", String(err));
-    } finally {
-      setCoverBusy(false);
-    }
   };
 
   return (
@@ -456,10 +437,9 @@ export function GameDetail({ game }: { game: Game }) {
           </button>
           <button
             className="btn btn-icon-glass"
-            onClick={() => void applyAutofill()}
-            disabled={coverBusy}
-            data-tooltip="读取程序信息、图标和本地封面"
-            aria-label={coverBusy ? "正在自动补全" : "自动补全"}
+            onClick={() => openEdit(game, true)}
+            data-tooltip="预览程序信息、图标和本地封面，确认后保存"
+            aria-label="自动补全"
           >
             <Sparkles size={15} />
           </button>

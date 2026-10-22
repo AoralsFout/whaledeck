@@ -371,15 +371,10 @@ pub fn scan_folder(path: String) -> Result<Vec<ScanEntry>, String> {
 
 // ---------- 资源 ----------
 
+/// 仅导入独立草稿封面；确认表单后才由 save_game 保存引用。
 #[tauri::command]
 pub fn import_cover(state: State<'_, AppState>, id: String, src: String) -> Result<String, String> {
-    let ext = lower_ext(&src);
-    let name = format!("{id}.{ext}");
-    let dir = state.store.covers_dir();
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    std::fs::copy(&src, dir.join(&name)).map_err(|e| format!("复制封面失败：{e}"))?;
-    remove_old_assets(&dir, &format!("{id}."), Some(&name));
-    Ok(name)
+    state.store.import_cover(&id, Path::new(&src))
 }
 
 /// 仅导入草稿资源；由 save_game 统一持久化图标引用。
@@ -635,109 +630,122 @@ pub struct AutofillResult {
     pub filled: Vec<String>,
 }
 
-/// 自动补全：版本资源 + 图标 + 本地封面，全部本地完成，最后一次性写盘。
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AutofillField {
+    Title,
+    Developer,
+    Note,
+    IconFile,
+    CoverFile,
+}
+
+/// 只生成候选草稿；写游戏库必须由用户确认后单独调用 save_game。
 #[tauri::command]
-pub fn autofill(state: State<'_, AppState>, game_id: String) -> Result<AutofillResult, String> {
-    let game = find_game(&state, &game_id)?;
-    let covers_dir = state.store.covers_dir();
-    let icons_dir = state.store.icons_dir();
-    std::fs::create_dir_all(&covers_dir).map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&icons_dir).map_err(|e| e.to_string())?;
+pub fn autofill(
+    state: State<'_, AppState>,
+    game: Game,
+    field: Option<AutofillField>,
+) -> Result<AutofillResult, String> {
+    preview_autofill(&state.store, game, field)
+}
 
-    let info = crate::program::read_version_info(&game.exe_path).ok();
-
-    // 1) 图标：提取到 icons/<id>.png（只当图标，不冒充封面）
-    let icon_name = match cover::icon_png(&game.exe_path) {
-        Ok((png, _, _)) => {
-            let name = format!("{game_id}.png");
-            std::fs::write(icons_dir.join(&name), png)
-                .ok()
-                .map(|_| name)
+/// 不访问库内记录，允许基于尚未保存的新项目或已修改路径获取候选。
+fn preview_autofill(
+    store: &Store,
+    mut game: Game,
+    field: Option<AutofillField>,
+) -> Result<AutofillResult, String> {
+    let path = game.exe_path.trim().to_string();
+    if path.is_empty() || !Path::new(&path).exists() {
+        return Err("目标路径不存在，请选择有效的程序、文件或文件夹后重试".into());
+    }
+    let requested = |candidate| field.is_none() || field == Some(candidate);
+    let mut filled = Vec::new();
+    if requested(AutofillField::Title)
+        || requested(AutofillField::Developer)
+        || requested(AutofillField::Note)
+    {
+        if let Ok(info) = crate::program::read_version_info(&path) {
+            filled = apply_program_info(&mut game, &info, field);
         }
-        Err(_) => None,
-    };
+    }
 
-    // 2) 本地封面：有就更新，没有保持原样
-    let mut cover_name: Option<String> = None;
+    let mut icon = false;
+    if requested(AutofillField::IconFile) {
+        if let Ok((png, _, _)) = cover::icon_png(&path) {
+            let dir = store.icons_dir();
+            std::fs::create_dir_all(&dir)
+                .map_err(|e| format!("创建图标目录失败 {}：{e}，请重试", dir.display()))?;
+            let name = format!("{}.png", uuid::Uuid::new_v4());
+            std::fs::write(dir.join(&name), png)
+                .map_err(|e| format!("保存候选图标失败 {}：{e}，请重试", dir.display()))?;
+            game.icon_file = Some(name);
+            icon = true;
+        }
+    }
+
+    let mut cover = false;
     let mut cover_detail = String::new();
-    if let Some(local) = cover::find_local_cover(&game.exe_path) {
-        let ext = local
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(|e| e.to_lowercase())
-            .unwrap_or_else(|| "png".into());
-        let name = format!("{game_id}.{ext}");
-        if std::fs::copy(&local, covers_dir.join(&name)).is_ok() {
-            remove_old_assets(&covers_dir, &format!("{game_id}."), Some(&name));
+    if requested(AutofillField::CoverFile) {
+        if let Some(local) = cover::find_local_cover(&path) {
+            game.cover_file = Some(store.import_cover(&game.id, &local)?);
             cover_detail = local
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
-            cover_name = Some(name);
+            cover = true;
         }
     }
-
-    let icon_written = icon_name.is_some();
-    let cover_written = cover_name.is_some();
-
-    let mut filled: Vec<String> = Vec::new();
-    let mut games = state.games.lock().unwrap();
-    let target = games
-        .iter_mut()
-        .find(|g| g.id == game_id)
-        .ok_or_else(|| "游戏记录不存在".to_string())?;
-
-    if let Some(name) = icon_name {
-        target.icon_file = Some(name);
-    }
-    if let Some(name) = cover_name {
-        target.cover_file = Some(name);
-    }
-
-    if let Some(info) = &info {
-        let stem = Path::new(&target.exe_path)
-            .file_stem()
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_default();
-        let title_is_stem = target.title.trim().eq_ignore_ascii_case(&stem);
-        let new_title = if !info.product.trim().is_empty() {
-            info.product.trim().to_string()
-        } else {
-            info.description.trim().to_string()
-        };
-        if (title_is_stem || target.title.trim().is_empty()) && !new_title.is_empty() {
-            target.title = new_title;
-            filled.push("名称".into());
-        }
-        if target.developer.trim().is_empty() && !info.company.trim().is_empty() {
-            target.developer = info.company.trim().to_string();
-            filled.push("开发商".into());
-        }
-        if target.note.trim().is_empty()
-            && (!info.description.trim().is_empty() || !info.version.trim().is_empty())
-        {
-            let mut note = info.description.trim().to_string();
-            if !info.version.trim().is_empty() {
-                if !note.is_empty() {
-                    note.push_str(" · ");
-                }
-                note.push_str(&format!("v{}", info.version.trim()));
-            }
-            target.note = note;
-            filled.push("备注".into());
-        }
-    }
-
-    let snapshot = target.clone();
-    state.store.save_games(&games)?;
-
     Ok(AutofillResult {
-        game: snapshot,
-        icon: icon_written,
-        cover: cover_written,
+        game,
+        icon,
+        cover,
         cover_detail,
         filled,
     })
+}
+
+/// 非空版本字段才产生候选；用户已有内容由表单快照保留以支持逐项恢复。
+fn apply_program_info(
+    game: &mut Game,
+    info: &crate::program::ProgramInfo,
+    field: Option<AutofillField>,
+) -> Vec<String> {
+    let title = if info.product.trim().is_empty() {
+        &info.description
+    } else {
+        &info.product
+    };
+    let note = [
+        info.description.trim().to_string(),
+        if info.version.trim().is_empty() {
+            String::new()
+        } else {
+            format!("v{}", info.version.trim())
+        },
+    ]
+    .into_iter()
+    .filter(|part| !part.is_empty())
+    .collect::<Vec<_>>()
+    .join(" · ");
+    let mut filled = Vec::new();
+    for (candidate, label, value, target) in [
+        (AutofillField::Title, "名称", title.trim(), &mut game.title),
+        (
+            AutofillField::Developer,
+            "开发商",
+            info.company.trim(),
+            &mut game.developer,
+        ),
+        (AutofillField::Note, "备注", note.as_str(), &mut game.note),
+    ] {
+        if (field.is_none() || field == Some(candidate)) && !value.is_empty() {
+            *target = value.to_string();
+            filled.push(label.to_string());
+        }
+    }
+    filled
 }
 
 #[cfg(test)]
@@ -759,6 +767,117 @@ mod game_write_tests {
             sessions: Mutex::new(vec![]),
             lifecycle: Mutex::new(Lifecycle::default()),
         }
+    }
+
+    #[test]
+    fn program_candidates_replace_only_requested_nonempty_fields() {
+        let mut draft = game("a", "用户名称");
+        draft.developer = "原公司".into();
+        draft.note = "原备注".into();
+        let info = crate::program::ProgramInfo {
+            product: " 产品名称 ".into(),
+            company: " 程序公司 ".into(),
+            description: " 程序描述 ".into(),
+            version: " 1.2 ".into(),
+        };
+        assert_eq!(
+            apply_program_info(&mut draft, &info, Some(AutofillField::Developer)),
+            vec!["开发商"]
+        );
+        assert_eq!(draft.title, "用户名称");
+        assert_eq!(draft.note, "原备注");
+        assert_eq!(draft.developer, "程序公司");
+        assert_eq!(apply_program_info(&mut draft, &info, None).len(), 3);
+        assert_eq!(draft.title, "产品名称");
+        assert_eq!(draft.note, "程序描述 · v1.2");
+        let empty = crate::program::ProgramInfo::default();
+        assert!(apply_program_info(&mut draft, &empty, None).is_empty());
+        assert_eq!(draft.title, "产品名称");
+        let fallback = crate::program::ProgramInfo {
+            description: "仅描述".into(),
+            ..empty
+        };
+        apply_program_info(&mut draft, &fallback, None);
+        assert_eq!(draft.title, "仅描述");
+        assert_eq!(draft.note, "仅描述");
+        assert_eq!(draft.developer, "程序公司");
+    }
+
+    #[test]
+    fn preview_and_repeated_cover_import_preserve_saved_record_and_images() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().join("library"));
+        store.ensure_dirs().unwrap();
+        let target_dir = dir.path().join("target");
+        std::fs::create_dir(&target_dir).unwrap();
+        let exe = target_dir.join("game.exe");
+        std::fs::write(&exe, b"program").unwrap();
+        let source = target_dir.join("cover.jpg");
+        std::fs::write(&source, vec![1u8; 20_000]).unwrap();
+        let mut original = game("a", "原名称");
+        original.exe_path = exe.to_string_lossy().to_string();
+        original.cover_file = Some("a.jpg".into());
+        original.icon_file = Some("a.png".into());
+        std::fs::write(store.covers_dir().join("a.jpg"), b"saved cover").unwrap();
+        std::fs::write(store.icons_dir().join("a.png"), b"saved icon").unwrap();
+        store.save_games(&[original.clone()]).unwrap();
+        let saved = std::fs::read(store.games_path()).unwrap();
+
+        let first =
+            preview_autofill(&store, original.clone(), Some(AutofillField::CoverFile)).unwrap();
+        assert!(first.cover);
+        assert!(!first.icon);
+        assert_eq!(first.game.title, original.title);
+        assert_eq!(first.game.icon_file, original.icon_file);
+        assert_ne!(first.game.cover_file, original.cover_file);
+        let second = store.import_cover("a", &source).unwrap();
+        assert_ne!(first.game.cover_file.as_deref(), Some(second.as_str()));
+        assert_eq!(std::fs::read(store.games_path()).unwrap(), saved);
+        assert_eq!(
+            std::fs::read(store.covers_dir().join("a.jpg")).unwrap(),
+            b"saved cover"
+        );
+        assert_eq!(
+            std::fs::read(store.icons_dir().join("a.png")).unwrap(),
+            b"saved icon"
+        );
+        assert_eq!(
+            std::fs::read(store.covers_dir().join(first.game.cover_file.unwrap())).unwrap(),
+            vec![1u8; 20_000]
+        );
+        assert_eq!(store.load_games()[0].cover_file, original.cover_file);
+    }
+
+    #[test]
+    fn preview_accepts_unsaved_draft_and_reports_missing_target_or_write_failure() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().join("library"));
+        let mut draft = game("new", "新增草稿");
+        assert!(preview_autofill(&store, draft.clone(), None)
+            .unwrap_err()
+            .contains("目标路径不存在"));
+        let target_dir = dir.path().join("target");
+        std::fs::create_dir(&target_dir).unwrap();
+        draft.exe_path = target_dir.to_string_lossy().to_string();
+        draft.cover_file = Some("原封面.jpg".into());
+        let no_cover =
+            preview_autofill(&store, draft.clone(), Some(AutofillField::CoverFile)).unwrap();
+        assert!(!no_cover.cover);
+        assert_eq!(no_cover.game.cover_file, draft.cover_file);
+        assert!(!store.games_path().exists());
+        std::fs::write(target_dir.join("cover.jpg"), vec![1u8; 20_000]).unwrap();
+        store.ensure_dirs().unwrap();
+        let result =
+            preview_autofill(&store, draft.clone(), Some(AutofillField::CoverFile)).unwrap();
+        assert!(result.cover);
+        assert!(!store.games_path().exists());
+        let blocked = Store::new(dir.path().join("blocked"));
+        std::fs::write(&blocked.root, b"not a directory").unwrap();
+        assert!(
+            preview_autofill(&blocked, draft, Some(AutofillField::CoverFile))
+                .unwrap_err()
+                .contains("创建封面目录失败")
+        );
     }
 
     #[test]

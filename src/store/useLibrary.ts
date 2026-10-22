@@ -42,6 +42,7 @@ type LibraryState = {
   selectedId: string | null;
   formOpen: boolean;
   editing: Game | null;
+  formAutofill: boolean;
   settingsOpen: boolean;
   scanOpen: boolean;
   metaOpen: boolean;
@@ -53,7 +54,7 @@ type LibraryState = {
   setSort: (sort: SortKey) => Promise<void>;
   select: (id: string | null) => void;
   openNew: () => void;
-  openEdit: (game: Game) => void;
+  openEdit: (game: Game, autofill?: boolean) => void;
   closeForm: () => void;
   saveGame: (game: Game) => Promise<boolean>;
   addScannedGames: (entries: ScanEntry[]) => Promise<BatchAddResult>;
@@ -145,6 +146,7 @@ export const useLibrary = create<LibraryState>((set, get) => {
     selectedId: null,
     formOpen: false,
     editing: null,
+    formAutofill: false,
     settingsOpen: false,
     scanOpen: false,
     metaOpen: false,
@@ -189,9 +191,10 @@ export const useLibrary = create<LibraryState>((set, get) => {
 
     select: (selectedId) => set({ selectedId }),
 
-    openNew: () => set({ editing: newGameDraft(), formOpen: true }),
-    openEdit: (game) => set({ editing: { ...game }, formOpen: true }),
-    closeForm: () => set({ editing: null, formOpen: false }),
+    openNew: () => set({ editing: newGameDraft(), formOpen: true, formAutofill: false }),
+    // 候选留在独立表单草稿中，打开补全不产生库写入。
+    openEdit: (game, autofill = false) => set({ editing: { ...game }, formOpen: true, formAutofill: autofill }),
+    closeForm: () => set({ editing: null, formOpen: false, formAutofill: false }),
 
     saveGame: async (game) => {
       set({ busy: true });
@@ -200,6 +203,7 @@ export const useLibrary = create<LibraryState>((set, get) => {
         set((s) => ({
           formOpen: false,
           editing: null,
+          formAutofill: false,
           selectedId: saved.id,
           ...(filterGames([saved], s.nav, s.query).length === 0
             ? { nav: saved.hidden ? { type: "hidden" as const } : { type: "all" as const }, query: "" }

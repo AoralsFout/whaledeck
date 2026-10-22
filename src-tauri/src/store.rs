@@ -38,6 +38,16 @@ impl Store {
 
     /// 草稿图片使用独立文件，取消编辑或重复换图时不覆盖已保存的图标。
     pub fn import_icon(&self, id: &str, src: &Path) -> Result<String, String> {
+        self.import_image(id, src, true)
+    }
+
+    /// 封面与图标采用同样的草稿隔离规则，恢复原值时旧文件仍然有效。
+    pub fn import_cover(&self, id: &str, src: &Path) -> Result<String, String> {
+        self.import_image(id, src, false)
+    }
+
+    /// 仅复制资源，不改记录；独立文件名同时隔离已保存图片与 WebView 缓存。
+    fn import_image(&self, id: &str, src: &Path, icon: bool) -> Result<String, String> {
         if id.is_empty()
             || !id
                 .bytes()
@@ -50,25 +60,33 @@ impl Store {
             .and_then(|e| e.to_str())
             .unwrap_or_default()
             .to_ascii_lowercase();
-        if !["png", "jpg", "jpeg", "webp", "gif", "bmp", "ico"].contains(&ext.as_str()) {
-            return Err("图标格式不支持，请选择 PNG、JPG、WebP、GIF、BMP 或 ICO 图片".into());
+        let label = if icon { "图标" } else { "封面" };
+        let supported = ["png", "jpg", "jpeg", "webp", "gif", "bmp"].contains(&ext.as_str())
+            || icon && ext == "ico";
+        if !supported {
+            return Err(format!("{label}格式不支持，请重新选择图片"));
         }
         let mut source = fs::File::open(src)
-            .map_err(|e| format!("读取图标失败 {}：{e}，请重新选择图片", src.display()))?;
-        let dir = self.icons_dir();
-        fs::create_dir_all(&dir).map_err(|e| format!("创建图标目录失败 {}：{e}", dir.display()))?;
+            .map_err(|e| format!("读取{label}失败 {}：{e}，请重新选择图片", src.display()))?;
+        let dir = if icon {
+            self.icons_dir()
+        } else {
+            self.covers_dir()
+        };
+        fs::create_dir_all(&dir)
+            .map_err(|e| format!("创建{label}目录失败 {}：{e}", dir.display()))?;
         let name = format!("{id}.{}.{ext}", uuid::Uuid::new_v4());
         let dest = dir.join(&name);
         let mut output = fs::OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&dest)
-            .map_err(|e| format!("创建图标失败 {}：{e}", dest.display()))?;
+            .map_err(|e| format!("创建{label}失败 {}：{e}", dest.display()))?;
         if let Err(e) = std::io::copy(&mut source, &mut output).and_then(|_| output.sync_all()) {
             drop(output);
             let _ = fs::remove_file(&dest);
             return Err(format!(
-                "复制图标失败 {}：{e}，请重新选择图片",
+                "复制{label}失败 {}：{e}，请重新选择图片",
                 dest.display()
             ));
         }
