@@ -33,10 +33,10 @@ function CoverFallback({ title }: { title: string }) {
       className="flex h-full w-full items-center justify-center"
       style={{
         background:
-          "linear-gradient(135deg, rgba(var(--primary-rgb), .22), rgba(var(--accent-rgb), .14) 70%, transparent)",
+          "linear-gradient(135deg, rgba(var(--primary-rgb), .28), rgba(var(--accent-rgb), .18) 55%, rgba(var(--bg-rgb), .9))",
       }}
     >
-      <span className="text-6xl font-bold" style={{ color: "rgba(var(--primary-rgb), .8)" }}>
+      <span className="text-7xl font-bold" style={{ color: "rgba(var(--primary-rgb), .8)" }}>
         {(title || "?").charAt(0).toUpperCase()}
       </span>
     </div>
@@ -53,6 +53,8 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
     </div>
   );
 }
+
+const PANEL_BG = "color-mix(in srgb, var(--surface-2) 68%, transparent)";
 
 export function GameDetail() {
   const game = useLibrary((s) => s.games.find((g) => g.id === s.selectedId) ?? null);
@@ -119,7 +121,7 @@ export function GameDetail() {
     }
     try {
       const updated = await api.resetPlaytime(game.id, Math.round(value * 60));
-      useLibrary.getState().applyGame(updated);
+      applyGame(updated);
       setFixTime(false);
       showToast("success", "时长已修正");
     } catch (err) {
@@ -139,12 +141,7 @@ export function GameDetail() {
     try {
       const outcome = await api.autoCover(game.id);
       applyGame({ ...game, coverFile: outcome.coverFile });
-      showToast(
-        "success",
-        outcome.kind === "local"
-          ? `已使用本地封面：${outcome.detail}`
-          : "已提取系统图标作为封面（清晰度有限）",
-      );
+      showToast("success", `已使用本地封面：${outcome.detail}`);
     } catch (err) {
       showToast("error", String(err));
     } finally {
@@ -180,35 +177,58 @@ export function GameDetail() {
 
   return (
     <div
-      className="animate-drawer-in fixed inset-y-0 right-0 z-30 flex w-[420px] flex-col border-l shadow-2xl"
+      className="animate-drawer-in fixed inset-y-0 right-0 z-30 flex w-[480px] flex-col border-l shadow-2xl"
       style={{
         borderColor: "var(--border)",
-        background: "color-mix(in srgb, var(--surface) 90%, transparent)",
-        backdropFilter: "blur(22px)",
+        background: "color-mix(in srgb, var(--surface) 70%, transparent)",
+        backdropFilter: "blur(28px) saturate(1.15)",
+        WebkitBackdropFilter: "blur(28px) saturate(1.15)",
       }}
     >
-      <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden">
+      {/* 大横幅封面 */}
+      <div className="relative h-[300px] w-full shrink-0 overflow-hidden">
         {cover ? (
-          <img src={cover} alt={game.title} className="h-full w-full object-cover" draggable={false} />
+          <img
+            src={cover}
+            alt={game.title}
+            className="h-full w-full object-cover"
+            draggable={false}
+          />
         ) : (
           <CoverFallback title={game.title} />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/5" />
         <button
-          className="absolute right-3 top-3 rounded-full p-1.5 text-white/85 transition-colors hover:bg-white/15"
+          className="absolute right-3 top-3 rounded-full bg-black/30 p-1.5 text-white/90 backdrop-blur-md transition-colors hover:bg-white/20"
           onClick={() => select(null)}
           aria-label="关闭详情"
         >
           <X size={16} />
         </button>
-        <div className="absolute inset-x-4 bottom-3">
-          <h2 className="m-0 truncate text-lg font-semibold text-white">{game.title}</h2>
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            <span className="chip" style={{ background: "rgba(8,13,26,.6)", borderColor: "rgba(255,255,255,.14)", color: "#dbe7ff" }}>
+        <div className="absolute inset-x-5 bottom-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span
+              className="chip"
+              style={{
+                background: "rgba(8,13,26,.55)",
+                borderColor: "rgba(255,255,255,.16)",
+                color: "#e3ecff",
+                backdropFilter: "blur(8px)",
+              }}
+            >
               {game.category || "未分类"}
             </span>
             {game.tags.map((tag) => (
-              <span key={tag} className="chip" style={{ background: "rgba(8,13,26,.6)", borderColor: "rgba(255,255,255,.14)", color: "#c6d5f5" }}>
+              <span
+                key={tag}
+                className="chip"
+                style={{
+                  background: "rgba(8,13,26,.5)",
+                  borderColor: "rgba(255,255,255,.14)",
+                  color: "#c9d8f7",
+                  backdropFilter: "blur(8px)",
+                }}
+              >
                 {tag}
               </span>
             ))}
@@ -216,51 +236,65 @@ export function GameDetail() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
-        <div className="flex items-center gap-2">
-          <button
-            className="btn btn-primary flex-1 !py-2.5"
-            disabled={Boolean(running)}
-            onClick={() => void launch(game.id)}
-          >
-            <Play size={15} fill="currentColor" />
-            {running
-              ? `运行中 ${formatTimer(elapsed)}`
-              : processLike
-                ? "启动"
-                : "用默认程序打开"}
-          </button>
-          <button
-            className="btn !px-3 !py-2.5"
-            onClick={() => void toggleFavorite(game.id)}
-            title={game.favorite ? "取消收藏" : "加入收藏"}
-            style={{ color: game.favorite ? "#ffd166" : undefined }}
-          >
-            <Star size={15} fill={game.favorite ? "currentColor" : "none"} />
-          </button>
-          <button className="btn !px-3 !py-2.5" onClick={() => openEdit(game)} title="编辑">
-            <Pencil size={15} />
-          </button>
-          <button
-            className="btn !px-3 !py-2.5"
-            onClick={openMeta}
-            title="联网补全封面和信息"
-          >
-            <CloudDownload size={15} />
-          </button>
-          <button
-            className="btn !px-3 !py-2.5"
-            onClick={() => void applyAutoCover()}
-            disabled={coverBusy}
-            title="自动封面：先找游戏目录里的图片，找不到就提取图标"
-          >
-            <Sparkles size={15} />
-          </button>
-        </div>
+      {/* 标题 */}
+      <div className="shrink-0 px-5 pt-4">
+        <h2 className="m-0 truncate text-lg font-semibold">{game.title}</h2>
+      </div>
 
+      {/* 操作条（毛玻璃） */}
+      <div
+        className="flex shrink-0 items-center gap-2 border-b px-4 py-2.5"
+        style={{
+          borderColor: "var(--border)",
+          background: "color-mix(in srgb, var(--surface) 55%, transparent)",
+          backdropFilter: "blur(14px)",
+        }}
+      >
+        <button
+          className="btn btn-primary flex-1 !py-2.5"
+          disabled={Boolean(running)}
+          onClick={() => void launch(game.id)}
+        >
+          <Play size={15} fill="currentColor" />
+          {running
+            ? `运行中 ${formatTimer(elapsed)}`
+            : processLike
+              ? "启动"
+              : "用默认程序打开"}
+        </button>
+        <button
+          className="btn !px-3 !py-2.5"
+          onClick={() => void toggleFavorite(game.id)}
+          title={game.favorite ? "取消收藏" : "加入收藏"}
+          style={{ color: game.favorite ? "#ffd166" : undefined }}
+        >
+          <Star size={15} fill={game.favorite ? "currentColor" : "none"} />
+        </button>
+        <button className="btn !px-3 !py-2.5" onClick={() => openEdit(game)} title="编辑">
+          <Pencil size={15} />
+        </button>
+        <button
+          className="btn !px-3 !py-2.5"
+          onClick={openMeta}
+          title="联网补全封面和信息"
+        >
+          <CloudDownload size={15} />
+        </button>
+        <button
+          className="btn !px-3 !py-2.5"
+          onClick={() => void applyAutoCover()}
+          disabled={coverBusy}
+          title="自动封面：在游戏目录里找 cover / header / poster 等图片"
+        >
+          <Sparkles size={15} />
+        </button>
+      </div>
+
+      {/* 信息内容 */}
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3.5">
         <section
           className="space-y-2.5 rounded-xl p-3.5 text-[12px]"
-          style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+          style={{ background: PANEL_BG, border: "1px solid var(--border)" }}
         >
           <Row label="目标">
             <span className="block truncate" title={game.exePath}>
@@ -320,7 +354,10 @@ export function GameDetail() {
         {processLike && (
           <>
             {fixTime ? (
-              <div className="rounded-xl p-3" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+              <div
+                className="rounded-xl p-3"
+                style={{ background: PANEL_BG, border: "1px solid var(--border)" }}
+              >
                 <label className="label">修正累计时长（分钟）</label>
                 <div className="flex items-center gap-2">
                   <input
@@ -364,7 +401,7 @@ export function GameDetail() {
 
         <section
           className="rounded-xl p-3.5 text-[12px]"
-          style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+          style={{ background: PANEL_BG, border: "1px solid var(--border)" }}
         >
           <div className="mb-2 flex items-center justify-between">
             <span className="flex items-center gap-1.5 font-medium">
@@ -408,7 +445,7 @@ export function GameDetail() {
                     <div
                       key={backup.file}
                       className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5"
-                      style={{ background: "var(--surface)" }}
+                      style={{ background: "color-mix(in srgb, var(--surface) 70%, transparent)" }}
                     >
                       <span className="truncate">
                         {formatDate(backup.createdAt)}{" "}
@@ -452,7 +489,10 @@ export function GameDetail() {
         </section>
 
         {game.summary && (
-          <div className="rounded-xl p-3 text-[12px] leading-5" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+          <div
+            className="rounded-xl p-3 text-[12px] leading-5"
+            style={{ background: PANEL_BG, border: "1px solid var(--border)" }}
+          >
             <p className="m-0 mb-1 text-[11px] font-medium" style={{ color: "var(--text-dim)" }}>
               简介
             </p>
@@ -463,7 +503,10 @@ export function GameDetail() {
         )}
 
         {game.note && (
-          <div className="rounded-xl p-3 text-[12px] leading-5" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+          <div
+            className="rounded-xl p-3 text-[12px] leading-5"
+            style={{ background: PANEL_BG, border: "1px solid var(--border)" }}
+          >
             <p className="m-0 whitespace-pre-wrap" style={{ color: "var(--text)" }}>
               {game.note}
             </p>
@@ -472,7 +515,10 @@ export function GameDetail() {
 
         <div className="border-t pt-3" style={{ borderColor: "var(--border)" }}>
           {confirmDelete ? (
-            <div className="space-y-2 rounded-xl p-3" style={{ background: "rgba(244,63,94,.08)", border: "1px solid rgba(244,63,94,.3)" }}>
+            <div
+              className="space-y-2 rounded-xl p-3"
+              style={{ background: "rgba(244,63,94,.1)", border: "1px solid rgba(244,63,94,.32)" }}
+            >
               <p className="m-0 text-[12px]">确定从库中移除「{game.title}」吗？</p>
               <p className="m-0 text-[11px]" style={{ color: "var(--text-dim)" }}>
                 只删除库里的记录，本地文件与存档都不会被动。

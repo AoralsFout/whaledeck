@@ -4360,7 +4360,7 @@ dependencies = [
 
 [[package]]
 name = "whaledeck"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "png",
  "reqwest 0.12.28",

@@ -597,10 +597,7 @@ pub fn auto_cover(state: State<'_, AppState>, game_id: String) -> Result<CoverOu
             .unwrap_or_default();
         (name, "local".to_string(), detail)
     } else {
-        let (png, width, height) = cover::icon_png(&game.exe_path)?;
-        let name = format!("{game_id}.png");
-        std::fs::write(dir.join(&name), png).map_err(|e| format!("保存图标失败：{e}"))?;
-        (name, "icon".to_string(), format!("{width}×{height} 图标"))
+        return Err("没找到本地封面图。可以用「联网补全」搜索，或手动选择封面。".into());
     };
 
     remove_old_assets(&dir, &format!("{game_id}."), Some(&name));
