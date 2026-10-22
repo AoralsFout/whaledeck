@@ -33,16 +33,17 @@ const PANEL_STYLE = {
   border: "1px solid rgba(255,255,255,.09)",
   backdropFilter: "blur(16px)",
 } as const;
+const CONTENT_FADE = "linear-gradient(to bottom, #000 calc(100% - 40px), transparent 100%)";
 
 function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="flex items-center gap-2">
-      <span style={{ color: "rgba(180, 200, 230, .8)" }}>{icon}</span>
-      <div className="leading-tight">
+    <div className="flex min-w-0 items-center gap-2">
+      <span className="shrink-0" style={{ color: "rgba(180, 200, 230, .8)" }}>{icon}</span>
+      <div className="min-w-0 leading-tight">
         <p className="m-0 text-[10px]" style={{ color: "rgba(160, 180, 210, .85)" }}>
           {label}
         </p>
-        <p className="m-0 text-[12px] text-white">{value}</p>
+        <p className="m-0 text-[12px] break-words text-white">{value}</p>
       </div>
     </div>
   );
@@ -184,7 +185,7 @@ export function GameDetail() {
   };
 
   return (
-    <div className="relative h-full overflow-hidden">
+    <div className="relative flex h-full flex-col overflow-hidden">
       {/* 全幅背景（只用封面，不用图标） */}
       <div className="absolute inset-0">
         {cover ? (
@@ -208,8 +209,17 @@ export function GameDetail() {
       </div>
 
       {/* 内容 */}
-      <div className="relative h-full overflow-y-auto">
-        <div className="flex min-h-full flex-col justify-end px-10 pb-7 pt-20">
+      <div
+        className="relative min-h-0 flex-1 overflow-y-auto"
+        style={{
+          scrollbarGutter: "stable",
+          scrollPaddingBottom: "3rem",
+          maskImage: CONTENT_FADE,
+          WebkitMaskImage: CONTENT_FADE,
+        }}
+      >
+        {/* 底部留出渐隐高度，滚动到底后仍能完整阅读和操作最后一项。 */}
+        <div className="flex min-h-full flex-col justify-end px-6 pb-12 pt-20 sm:px-10">
           {/* 标题 + 图标 */}
           <div className="flex items-center gap-3">
             {icon && (
@@ -417,66 +427,67 @@ export function GameDetail() {
               </div>
             </div>
           </div>
-
-          {/* 启动栏（底部常显） */}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <button
-              className="btn btn-primary !px-7 !py-2.5 text-[13px]"
-              disabled={Boolean(running)}
-              onClick={() => void launch(game.id)}
-            >
-              <Play size={16} fill="currentColor" />
-              {running
-                ? `运行中 ${formatTimer(elapsed)}`
-                : processLike
-                  ? "开始游戏"
-                  : "用默认程序打开"}
-            </button>
-            <button
-              className="btn btn-icon-glass"
-              onClick={() => void toggleFavorite(game.id)}
-              title={game.favorite ? "取消收藏" : "加入收藏"}
-              style={{ color: game.favorite ? "#ffd166" : undefined }}
-            >
-              <Star size={15} fill={game.favorite ? "currentColor" : "none"} />
-            </button>
-            <button className="btn btn-icon-glass" onClick={() => openEdit(game)} title="编辑">
-              <Pencil size={15} />
-            </button>
-            <button className="btn btn-icon-glass" onClick={openMeta} title="联网补全封面和信息">
-              <CloudDownload size={15} />
-            </button>
-            <button
-              className="btn btn-icon-glass"
-              onClick={() => void applyAutofill()}
-              disabled={coverBusy}
-              title="自动补全：读程序信息 + 提取图标 + 找本地封面"
-            >
-              <Sparkles size={15} />
-            </button>
-          </div>
-
-          {/* 时长统计栏（底部常显） */}
-          <div
-            className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl px-4 py-3"
-            style={{
-              background: PANEL_BG,
-              border: "1px solid rgba(255,255,255,.08)",
-              backdropFilter: "blur(12px)",
-            }}
-          >
-            <Stat icon={<Clock size={14} />} label="最近游玩" value={formatRelative(game.lastPlayedAt)} />
-            <Stat
-              icon={<Play size={14} />}
-              label="累计时长"
-              value={processLike ? formatPlaytime(game.playtimeSec) : "不统计"}
-            />
-            <Stat icon={<Tag size={14} />} label="分类" value={game.category || "未分类"} />
-            <Stat icon={<Archive size={14} />} label="存档目录" value={`${game.savePaths.length} 个`} />
-            {game.source && <Stat icon={<CloudDownload size={14} />} label="来源" value={game.source} />}
-          </div>
         </div>
       </div>
+
+      {/* 独立底栏：详情单独滚动，操作与统计始终固定在展示面板底部。 */}
+      <footer
+        className="relative z-10 shrink-0 overflow-hidden px-6 pb-7 sm:px-10"
+        aria-label="游戏操作与信息"
+        // 与滚动区预留相同的滚动条宽度，保持内容左右边界一致。
+        style={{ scrollbarGutter: "stable" }}
+      >
+        {/* 游戏操作 */}
+        <div className="flex flex-wrap items-center gap-2 py-4">
+          <button
+            className="btn btn-primary !px-7 !py-2.5 text-[13px]"
+            disabled={Boolean(running)}
+            onClick={() => void launch(game.id)}
+          >
+            <Play size={16} fill="currentColor" />
+            {running
+              ? `运行中 ${formatTimer(elapsed)}`
+              : processLike
+                ? "开始游戏"
+                : "用默认程序打开"}
+          </button>
+          <button
+            className="btn btn-icon-glass"
+            onClick={() => void toggleFavorite(game.id)}
+            title={game.favorite ? "取消收藏" : "加入收藏"}
+            style={{ color: game.favorite ? "#ffd166" : undefined }}
+          >
+            <Star size={15} fill={game.favorite ? "currentColor" : "none"} />
+          </button>
+          <button className="btn btn-icon-glass" onClick={() => openEdit(game)} title="编辑">
+            <Pencil size={15} />
+          </button>
+          <button className="btn btn-icon-glass" onClick={openMeta} title="联网补全封面和信息">
+            <CloudDownload size={15} />
+          </button>
+          <button
+            className="btn btn-icon-glass"
+            onClick={() => void applyAutofill()}
+            disabled={coverBusy}
+            title="自动补全：读程序信息 + 提取图标 + 找本地封面"
+          >
+            <Sparkles size={15} />
+          </button>
+        </div>
+
+        {/* 游戏信息 */}
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-3 py-3">
+          <Stat icon={<Clock size={14} />} label="最近游玩" value={formatRelative(game.lastPlayedAt)} />
+          <Stat
+            icon={<Play size={14} />}
+            label="累计时长"
+            value={processLike ? formatPlaytime(game.playtimeSec) : "不统计"}
+          />
+          <Stat icon={<Tag size={14} />} label="分类" value={game.category || "未分类"} />
+          <Stat icon={<Archive size={14} />} label="存档目录" value={`${game.savePaths.length} 个`} />
+          {game.source && <Stat icon={<CloudDownload size={14} />} label="来源" value={game.source} />}
+        </div>
+      </footer>
     </div>
   );
 }
