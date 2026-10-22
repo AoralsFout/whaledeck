@@ -89,6 +89,40 @@ pub struct Settings {
     pub sort: String,
     #[serde(default)]
     pub categories: Vec<String>,
+    #[serde(default)]
+    pub close_behavior: Option<CloseBehavior>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CloseBehavior {
+    Exit,
+    Hide,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CloseRequestKind {
+    Choose,
+    ConfirmExit,
+    Error,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CloseRequest {
+    pub kind: CloseRequestKind,
+    pub running_count: usize,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CloseAction {
+    Hide,
+    Exit,
+    Cancel,
+    ConfirmExit,
 }
 
 fn default_sort() -> String {
@@ -101,6 +135,7 @@ impl Default for Settings {
             theme: Theme::default(),
             sort: default_sort(),
             categories: Vec::new(),
+            close_behavior: None,
         }
     }
 }

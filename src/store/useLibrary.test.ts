@@ -1,14 +1,14 @@
 /**
- * @file 游戏写入与批量加入的测试：写后更新、失败保留、去重、串行与重试。
+ * @file 游戏写入、批量加入与关闭偏好测试：写后更新、失败保留、去重、串行与重试。
  *
  * 对应文档：docs/前端实现.md §2.1、§6。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../lib/ipc";
-import { newGameDraft, type ScanEntry } from "../types";
+import { newGameDraft, type ScanEntry, type Settings } from "../types";
 import { useLibrary } from "./useLibrary";
 
-vi.mock("../lib/ipc", () => ({ api: { saveGame: vi.fn() } }));
+vi.mock("../lib/ipc", () => ({ api: { saveGame: vi.fn(), setCloseBehavior: vi.fn() } }));
 
 const entries: ScanEntry[] = ["A", "B", "C"].map((name) => ({
   name: `${name}.exe`, path: `C:\\Games\\${name}.exe`, size: 1024,
@@ -23,6 +23,21 @@ describe("游戏写入", () => {
     useLibrary.getState().hideToast();
     vi.useRealTimers();
     vi.resetAllMocks();
+  });
+
+  it("关闭行为只在保存成功后更新，失败时保留原选择", async () => {
+    const settings: Settings = {
+      theme: { preset: "whale", mode: "dark", primary: "#4fd6e8", accent: "#ff9ec7", backgroundFile: null, backgroundDim: .55 },
+      sort: "recent", categories: [], closeBehavior: null,
+    };
+    useLibrary.setState({ settings });
+    vi.mocked(api.setCloseBehavior).mockRejectedValueOnce("写入失败");
+    await useLibrary.getState().setCloseBehavior("exit");
+    expect(useLibrary.getState().settings?.closeBehavior).toBeNull();
+    expect(useLibrary.getState().toast?.text).toContain("写入失败");
+    vi.mocked(api.setCloseBehavior).mockResolvedValueOnce({ ...settings, closeBehavior: "hide" });
+    await useLibrary.getState().setCloseBehavior("hide");
+    expect(useLibrary.getState().settings?.closeBehavior).toBe("hide");
   });
 
   it("新增使用保存结果更新列表与选择，不必重新载入整个库", async () => {
