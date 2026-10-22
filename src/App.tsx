@@ -3,24 +3,26 @@ import { api, fileUrl, onGameStopped, onLaunchFailed } from "./lib/ipc";
 import { applyTheme } from "./lib/theme";
 import { useLibrary } from "./store/useLibrary";
 import { Sidebar } from "./components/Sidebar";
-import { TopBar } from "./components/TopBar";
-import { GameGrid } from "./components/GameGrid";
 import { GameDetail } from "./components/GameDetail";
 import { GameForm } from "./components/GameForm";
 import { SettingsPanel } from "./components/SettingsPanel";
-import { Toast } from "./components/Toast";
 import { ScanDialog } from "./components/ScanDialog";
 import { MetaDialog } from "./components/MetaDialog";
+import { EmptyState } from "./components/EmptyState";
+import { Toast } from "./components/Toast";
 
 export default function App() {
   const ready = useLibrary((s) => s.ready);
   const settings = useLibrary((s) => s.settings);
+  const games = useLibrary((s) => s.games);
   const selectedId = useLibrary((s) => s.selectedId);
   const formOpen = useLibrary((s) => s.formOpen);
   const settingsOpen = useLibrary((s) => s.settingsOpen);
   const scanOpen = useLibrary((s) => s.scanOpen);
   const metaOpen = useLibrary((s) => s.metaOpen);
   const init = useLibrary((s) => s.init);
+  const select = useLibrary((s) => s.select);
+  const openNew = useLibrary((s) => s.openNew);
 
   useEffect(() => {
     void init();
@@ -37,6 +39,15 @@ export default function App() {
       });
     };
   }, []);
+
+  // 默认选中第一个游戏
+  useEffect(() => {
+    if (!ready) return;
+    const exists = selectedId && games.some((g) => g.id === selectedId);
+    if (exists) return;
+    if (games.length > 0) select(games[0].id);
+    else if (selectedId) select(null);
+  }, [ready, games, selectedId, select]);
 
   // 主题应用 + 背景图
   useEffect(() => {
@@ -82,17 +93,15 @@ export default function App() {
     );
   }
 
+  const selected = games.find((g) => g.id === selectedId);
+
   return (
     <div className="flex h-full">
       <Sidebar />
-      <main className="flex min-w-0 flex-1 flex-col">
-        <TopBar />
-        <div className="min-h-0 flex-1 overflow-y-auto px-7 pb-8">
-          <GameGrid />
-        </div>
+      <main className="relative min-w-0 flex-1">
+        {selected ? <GameDetail /> : <EmptyState onAdd={openNew} />}
       </main>
 
-      {selectedId && <GameDetail />}
       {formOpen && <GameForm />}
       {settingsOpen && <SettingsPanel />}
       {scanOpen && <ScanDialog />}

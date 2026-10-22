@@ -1,35 +1,34 @@
-import { EyeOff, FolderHeart, Gamepad2, LayoutGrid, Settings, Star, Tag } from "lucide-react";
-import { collectCategories } from "../lib/library";
+import { ArrowDownWideNarrow, FolderSearch, Plus, Search, Settings, Star, X } from "lucide-react";
+import { formatPlaytime, formatRelative } from "../lib/format";
+import { collectCategories, filterGames, sortGames } from "../lib/library";
+import { useAssetUrl } from "../lib/useAssetUrl";
 import { useLibrary } from "../store/useLibrary";
-import type { NavKey } from "../types";
+import type { Game, NavKey, SortKey } from "../types";
 
-type NavItemProps = {
-  active: boolean;
-  icon: React.ReactNode;
-  label: string;
-  count?: number;
-  onClick: () => void;
-};
+const SORTS: { value: SortKey; label: string }[] = [
+  { value: "recent", label: "最近游玩" },
+  { value: "title", label: "名称" },
+  { value: "playtime", label: "时长" },
+  { value: "added", label: "添加时间" },
+];
 
-function NavItem({ active, icon, label, count, onClick }: NavItemProps) {
+function Thumb({ game }: { game: Game }) {
+  const cover = useAssetUrl("cover", game.coverFile);
   return (
-    <button
-      onClick={onClick}
-      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-colors"
+    <div
+      className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg"
       style={{
-        background: active ? "rgba(var(--primary-rgb), 0.12)" : "transparent",
-        color: active ? "var(--primary)" : "var(--text-dim)",
-        border: active
-          ? "1px solid rgba(var(--primary-rgb), 0.22)"
-          : "1px solid transparent",
+        background: "linear-gradient(135deg, rgba(var(--primary-rgb), .25), rgba(var(--accent-rgb), .18))",
       }}
     >
-      <span className="flex w-4 justify-center">{icon}</span>
-      <span className="flex-1 truncate text-left">{label}</span>
-      {count !== undefined && (
-        <span className="text-[11px] opacity-70">{count}</span>
+      {cover ? (
+        <img src={cover} alt="" className="h-full w-full object-cover" draggable={false} />
+      ) : (
+        <span className="text-sm font-semibold" style={{ color: "rgba(var(--primary-rgb), .9)" }}>
+          {(game.title || "?").charAt(0).toUpperCase()}
+        </span>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -38,19 +37,43 @@ export function Sidebar() {
   const settings = useLibrary((s) => s.settings);
   const nav = useLibrary((s) => s.nav);
   const setNav = useLibrary((s) => s.setNav);
+  const query = useLibrary((s) => s.query);
+  const setQuery = useLibrary((s) => s.setQuery);
+  const sort = useLibrary((s) => s.sort);
+  const setSort = useLibrary((s) => s.setSort);
+  const selectedId = useLibrary((s) => s.selectedId);
+  const select = useLibrary((s) => s.select);
+  const openNew = useLibrary((s) => s.openNew);
+  const openScan = useLibrary((s) => s.openScan);
   const openSettings = useLibrary((s) => s.openSettings);
+  const sessions = useLibrary((s) => s.sessions);
 
   const categories = collectCategories(games, settings?.categories ?? []);
-  const isAll = nav.type === "all";
-  const isFav = nav.type === "favorites";
-  const hiddenCount = games.filter((g) => g.hidden).length;
+  const visible = sortGames(filterGames(games, nav, query), sort);
+
+  const isActive = (key: NavKey) => {
+    if (key.type !== nav.type) return false;
+    if (key.type === "category" && nav.type === "category") return key.name === nav.name;
+    return true;
+  };
+
+  const chips: NavKey[] = [
+    { type: "all" },
+    { type: "favorites" },
+    ...(games.some((g) => g.hidden) ? [{ type: "hidden" } as NavKey] : []),
+    ...categories.map((name): NavKey => ({ type: "category", name })),
+  ];
 
   return (
     <aside
-      className="flex w-[236px] shrink-0 flex-col border-r"
-      style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--surface) 55%, transparent)" }}
+      className="flex w-[300px] shrink-0 flex-col border-r"
+      style={{
+        borderColor: "var(--border)",
+        background: "color-mix(in srgb, var(--surface) 62%, transparent)",
+        backdropFilter: "blur(20px)",
+      }}
     >
-      <div className="flex items-center gap-2.5 px-5 pb-5 pt-6">
+      <div className="flex items-center gap-2.5 px-4 pb-3 pt-5">
         <div
           className="flex h-9 w-9 items-center justify-center rounded-xl text-lg"
           style={{
@@ -60,81 +83,159 @@ export function Sidebar() {
         >
           🐋
         </div>
-        <div className="leading-tight">
+        <div className="min-w-0 leading-tight">
           <p className="m-0 text-[15px] font-semibold tracking-wide">WhaleDeck</p>
           <p className="m-0 text-[10px]" style={{ color: "var(--text-dim)" }}>
             鲸鱼游戏台
           </p>
         </div>
-      </div>
-
-      <nav className="flex flex-col gap-1 px-3">
-        <NavItem
-          active={isAll}
-          icon={<LayoutGrid size={15} />}
-          label="全部游戏"
-          count={games.filter((g) => !g.hidden).length}
-          onClick={() => setNav({ type: "all" } as NavKey)}
-        />
-        <NavItem
-          active={isFav}
-          icon={<Star size={15} />}
-          label="收藏"
-          count={games.filter((g) => g.favorite && !g.hidden).length}
-          onClick={() => setNav({ type: "favorites" } as NavKey)}
-        />
-        {hiddenCount > 0 && (
-          <NavItem
-            active={nav.type === "hidden"}
-            icon={<EyeOff size={15} />}
-            label="已隐藏"
-            count={hiddenCount}
-            onClick={() => setNav({ type: "hidden" } as NavKey)}
-          />
-        )}
-      </nav>
-
-      <div className="mt-5 flex-1 overflow-y-auto px-3">
-        <div className="mb-1.5 flex items-center gap-1.5 px-3">
-          <Tag size={11} style={{ color: "var(--text-dim)" }} />
-          <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--text-dim)" }}>
-            分类
-          </span>
-        </div>
-        <div className="flex flex-col gap-0.5">
-          {categories.length === 0 && (
-            <p className="px-3 py-1 text-[11px]" style={{ color: "var(--text-dim)" }}>
-              还没有分类，编辑游戏时填写即可
-            </p>
-          )}
-          {categories.map((name) => (
-            <NavItem
-              key={name}
-              active={nav.type === "category" && nav.name === name}
-              icon={<FolderHeart size={15} />}
-              label={name}
-              count={games.filter((g) => g.category === name && !g.hidden).length}
-              onClick={() => setNav({ type: "category", name })}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="border-t px-3 py-3" style={{ borderColor: "var(--border)" }}>
-        <NavItem
-          active={false}
-          icon={<Settings size={15} />}
-          label="设置"
+        <button
+          className="btn btn-ghost ml-auto !p-1.5"
           onClick={openSettings}
-        />
-        <div className="mt-2 flex items-center justify-between px-3">
-          <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>
-            共 {games.length} 个游戏
-          </span>
-          <span className="flex items-center gap-1 text-[10px]" style={{ color: "var(--text-dim)" }}>
-            <Gamepad2 size={10} /> v0.5.0
-          </span>
+          title="设置"
+        >
+          <Settings size={15} />
+        </button>
+      </div>
+
+      <div className="space-y-2 px-3">
+        <div className="relative">
+          <Search
+            size={14}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
+            style={{ color: "var(--text-dim)" }}
+          />
+          <input
+            className="input pl-8 pr-7 !py-2 text-[12px]"
+            placeholder="搜索游戏、分类、标签…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            spellCheck={false}
+          />
+          {query && (
+            <button
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5"
+              style={{ color: "var(--text-dim)" }}
+              onClick={() => setQuery("")}
+              aria-label="清空搜索"
+            >
+              <X size={12} />
+            </button>
+          )}
         </div>
+
+        <div className="flex gap-1 overflow-x-auto pb-1">
+          {chips.map((chip) => {
+            const active = isActive(chip);
+            const label =
+              chip.type === "all"
+                ? "全部"
+                : chip.type === "favorites"
+                  ? "收藏"
+                  : chip.type === "hidden"
+                    ? "已隐藏"
+                    : chip.name;
+            return (
+              <button
+                key={chip.type + ("name" in chip ? chip.name : "")}
+                onClick={() => setNav(chip)}
+                className="shrink-0 rounded-full px-2.5 py-1 text-[11px] transition-colors"
+                style={{
+                  background: active ? "rgba(var(--primary-rgb), .16)" : "var(--surface-2)",
+                  color: active ? "var(--primary)" : "var(--text-dim)",
+                  border: `1px solid ${active ? "rgba(var(--primary-rgb), .4)" : "var(--border)"}`,
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <div className="relative flex-1">
+            <ArrowDownWideNarrow
+              size={13}
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2"
+              style={{ color: "var(--text-dim)" }}
+            />
+            <select
+              className="input cursor-pointer appearance-none !py-1.5 pl-7 pr-2 text-[11px]"
+              value={sort}
+              onChange={(e) => void setSort(e.target.value as SortKey)}
+              title="排序方式"
+            >
+              {SORTS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button className="btn !px-2 !py-1.5" onClick={() => void openScan()} title="扫描文件夹">
+            <FolderSearch size={14} />
+          </button>
+          <button className="btn btn-primary !px-2.5 !py-1.5" onClick={openNew} title="添加">
+            <Plus size={14} />
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-2 min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        {visible.length === 0 && (
+          <p className="px-3 py-6 text-center text-[11px]" style={{ color: "var(--text-dim)" }}>
+            {games.length === 0 ? "还没有游戏，点右上角 + 添加" : "没有匹配的游戏"}
+          </p>
+        )}
+        {visible.map((game) => {
+          const active = game.id === selectedId;
+          const running = sessions.some((s) => s.gameId === game.id);
+          return (
+            <button
+              key={game.id}
+              onClick={() => select(game.id)}
+              onDoubleClick={() => void useLibrary.getState().launchGame(game.id)}
+              className="mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors"
+              style={{
+                background: active ? "rgba(var(--primary-rgb), .13)" : "transparent",
+                border: `1px solid ${active ? "rgba(var(--primary-rgb), .3)" : "transparent"}`,
+              }}
+              title={`${game.title}\n${game.exePath}\n双击启动`}
+            >
+              <Thumb game={game} />
+              <div className="min-w-0 flex-1">
+                <p className="m-0 truncate text-[12.5px]" style={{ color: active ? "var(--text)" : "var(--text)" }}>
+                  {game.title}
+                </p>
+                <p className="m-0 truncate text-[10px]" style={{ color: "var(--text-dim)" }}>
+                  {formatRelative(game.lastPlayedAt)} · {formatPlaytime(game.playtimeSec)}
+                </p>
+              </div>
+              {running && (
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#7ee7c8]" title="运行中" />
+              )}
+              {game.favorite && (
+                <Star size={11} className="shrink-0" style={{ color: "#ffd166" }} fill="currentColor" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <div
+        className="flex items-center justify-between border-t px-4 py-2.5"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>
+          共 {games.length} 个 · v0.6.0
+        </span>
+        <button
+          className="btn btn-ghost !px-2 !py-1 text-[10px]"
+          onClick={openSettings}
+        >
+          <Settings size={11} />
+          设置
+        </button>
       </div>
     </aside>
   );

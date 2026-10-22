@@ -96,7 +96,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   },
 
   setQuery: (query) => set({ query }),
-  setNav: (nav) => set({ nav, selectedId: null }),
+  setNav: (nav) => set({ nav }),
 
   setSort: async (sort) => {
     set({ sort });
