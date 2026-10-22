@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useStore } from "zustand";
 import { CloudDownload, ImagePlus, Loader2, Search, X } from "lucide-react";
 import { api } from "../lib/ipc";
 import { useLibrary } from "../store/useLibrary";
+import { createMetaSearch } from "../store/metaSearch";
 import type { MetaItem, MetaSource } from "../types";
 import { Modal } from "./Modal";
 
@@ -21,31 +23,13 @@ export function MetaDialog() {
   const applyGame = useLibrary((s) => s.applyGame);
   const showToast = useLibrary((s) => s.showToast);
 
-  const [source, setSource] = useState<MetaSource>("bangumi");
-  const [keyword, setKeyword] = useState(game?.title ?? "");
-  const [items, setItems] = useState<MetaItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [searchStore] = useState(() => createMetaSearch(game?.title ?? "", {
+    search: api.searchMeta,
+    notify: showToast,
+  }));
+  const { source, keyword, items, loading, searched, setSource, setKeyword, runSearch } = useStore(searchStore);
   const [applying, setApplying] = useState<string | null>(null);
-  const [searched, setSearched] = useState(false);
-
-  const runSearch = async () => {
-    const text = keyword.trim();
-    if (!text) return;
-    setLoading(true);
-    setSearched(true);
-    try {
-      const result = await api.searchMeta(source, text);
-      setItems(result);
-      if (result.length === 0) {
-        showToast("info", "没搜到结果，换个别名或原名试试");
-      }
-    } catch (err) {
-      showToast("error", String(err));
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => () => searchStore.getState().invalidate(), [searchStore]);
 
   const apply = async (item: MetaItem) => {
     if (!game) return;
