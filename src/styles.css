@@ -499,6 +499,22 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 .detail-stats > div { max-width: 100%; }
 .detail-actions > .btn-primary { min-width: 156px; font-variant-numeric: tabular-nums; }
 .detail-actions .btn-icon-glass { min-width: 40px; min-height: 40px; }
+.action-tooltip {
+  position: fixed;
+  z-index: 70;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 24px));
+  padding: 10px 14px;
+  border: 1px solid rgb(143 163 199 / 28%);
+  border-radius: 10px;
+  background: rgb(16 26 46 / 96%);
+  color: #e9f1ff;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 24%);
+  backdrop-filter: blur(16px);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
 @container (min-width: 960px) {
   .detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .detail-grid > section:nth-child(n + 3) { grid-column: 1 / -1; }

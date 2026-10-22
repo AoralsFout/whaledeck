@@ -27,6 +27,7 @@ import { useAssetUrl } from "../lib/useAssetUrl";
 import { api } from "../lib/ipc";
 import { useLibrary } from "../store/useLibrary";
 import { isProcessTarget, type Game, type SaveBackup } from "../types";
+import { ActionTooltips } from "./ActionTooltips";
 
 const PANEL_BG = "rgba(10, 16, 30, 0.38)";
 const PANEL_STYLE = {
@@ -450,9 +451,10 @@ export function GameDetail({ game }: { game: Game }) {
         style={{ scrollbarGutter: "stable" }}
       >
         {/* 游戏操作 */}
-        <div className="detail-actions flex flex-wrap items-center gap-2 py-4">
+        <ActionTooltips className="detail-actions flex flex-wrap items-center gap-2 py-4">
           <button
             className="btn btn-primary !px-7 !py-2.5 text-[13px]"
+            data-tooltip={running ? "游戏运行中，退出后自动记录时长" : processLike ? "启动游戏并自动记录游玩时长" : "使用系统默认程序打开文件或文件夹"}
             disabled={Boolean(running) || launchBusy}
             onClick={async () => {
               setLaunchBusy(true);
@@ -469,29 +471,29 @@ export function GameDetail({ game }: { game: Game }) {
           <button
             className="btn btn-icon-glass"
             onClick={() => void toggleFavorite(game.id)}
-            title={game.favorite ? "取消收藏" : "加入收藏"}
+            data-tooltip={game.favorite ? "取消收藏" : "加入收藏，在最近游玩列表中置顶"}
             aria-label={game.favorite ? "取消收藏" : "加入收藏"}
             aria-pressed={game.favorite}
             style={{ color: game.favorite ? "#ffd166" : undefined }}
           >
             <Star size={15} fill={game.favorite ? "currentColor" : "none"} />
           </button>
-          <button className="btn btn-icon-glass" onClick={() => openEdit(game)} title="编辑" aria-label="编辑项目">
+          <button className="btn btn-icon-glass" onClick={() => openEdit(game)} data-tooltip="编辑名称、分类、封面与启动参数" aria-label="编辑项目">
             <Pencil size={15} />
           </button>
-          <button className="btn btn-icon-glass" onClick={openMeta} title="联网补全封面和信息" aria-label="联网补全封面和信息">
+          <button className="btn btn-icon-glass" onClick={openMeta} data-tooltip="联网搜索封面、简介和开发商信息" aria-label="联网补全封面和信息">
             <CloudDownload size={15} />
           </button>
           <button
             className="btn btn-icon-glass"
             onClick={() => void applyAutofill()}
             disabled={coverBusy}
-            title="自动补全：读程序信息 + 提取图标 + 找本地封面"
+            data-tooltip="读取程序信息、图标和本地封面"
             aria-label={coverBusy ? "正在自动补全" : "自动补全"}
           >
             <Sparkles size={15} />
           </button>
-        </div>
+        </ActionTooltips>
 
         {/* 游戏信息 */}
         <div className="detail-stats flex flex-wrap items-center gap-x-8 gap-y-3 py-3">
