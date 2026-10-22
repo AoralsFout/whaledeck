@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useStore } from "zustand";
 import {
   Archive,
   CloudDownload,
@@ -26,7 +27,8 @@ import {
 import { useAssetUrl } from "../lib/useAssetUrl";
 import { api } from "../lib/ipc";
 import { useLibrary } from "../store/useLibrary";
-import { isProcessTarget, type Game, type SaveBackup } from "../types";
+import { createSaveBackups } from "../store/saveBackups";
+import { isProcessTarget, type Game } from "../types";
 import { ActionTooltips } from "./ActionTooltips";
 
 const PANEL_BG = "rgba(10, 16, 30, 0.38)";
@@ -78,18 +80,18 @@ export function GameDetail({ game }: { game: Game }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [fixTime, setFixTime] = useState(false);
   const [minutes, setMinutes] = useState("");
-  const [backups, setBackups] = useState<SaveBackup[]>([]);
-  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupStore] = useState(() => createSaveBackups(game.id, {
+    list: api.listSaveBackups,
+    backup: api.backupSaves,
+    restore: api.restoreSaveBackup,
+    openDirectory: api.openBackupsDir,
+    notify: showToast,
+  }));
+  const { backups, busy: backupBusy, restoreTarget, selectRestore, backup: doBackup, restore: doRestore, openDirectory } = useStore(backupStore);
+  useEffect(() => backupStore.getState().connect(), [backupStore]);
   const [coverBusy, setCoverBusy] = useState(false);
-  const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [launchBusy, setLaunchBusy] = useState(false);
-  const alive = useRef(true);
-
-  useEffect(() => {
-    alive.current = true;
-    return () => { alive.current = false; };
-  }, []);
 
   useEffect(() => {
     if (!running) {
@@ -102,20 +104,6 @@ export function GameDetail({ game }: { game: Game }) {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [running]);
-
-  const refreshBackups = useCallback(async () => {
-    if (!game) return;
-    try {
-      const next = await api.listSaveBackups(game.id);
-      if (alive.current) setBackups(next);
-    } catch {
-      if (alive.current) setBackups([]);
-    }
-  }, [game?.id]);
-
-  useEffect(() => {
-    void refreshBackups();
-  }, [refreshBackups]);
 
   const processLike = isProcessTarget(game.exePath);
 
@@ -157,32 +145,6 @@ export function GameDetail({ game }: { game: Game }) {
       showToast("error", String(err));
     } finally {
       setCoverBusy(false);
-    }
-  };
-
-  const doBackup = async () => {
-    setBackupBusy(true);
-    try {
-      const backup = await api.backupSaves(game.id);
-      await refreshBackups();
-      showToast("success", `存档已备份（${formatBytes(backup.size)}）`);
-    } catch (err) {
-      showToast("error", String(err));
-    } finally {
-      setBackupBusy(false);
-    }
-  };
-
-  const doRestore = async (file: string) => {
-    setBackupBusy(true);
-    try {
-      const count = await api.restoreSaveBackup(game.id, file);
-      showToast("success", `已还原 ${count} 个文件到存档目录`);
-    } catch (err) {
-      showToast("error", String(err));
-    } finally {
-      setBackupBusy(false);
-      setRestoreTarget(null);
     }
   };
 
@@ -332,7 +294,7 @@ export function GameDetail({ game }: { game: Game }) {
                     </span>
                     <button
                       className="btn btn-ghost !px-2 !py-1 text-[11px] text-white/70 hover:!text-white"
-                      onClick={() => void api.openBackupsDir(game.id)}
+                      onClick={() => void openDirectory()}
                     >
                       <FolderOpen size={12} />
                       备份目录
@@ -362,17 +324,17 @@ export function GameDetail({ game }: { game: Game }) {
                             <span className="flex gap-1">
                               <button
                                 className="btn btn-danger !px-2 !py-0.5 text-[10px]"
-                                onClick={() => void doRestore(backup.file)}
+                                onClick={() => void doRestore()}
                                 disabled={backupBusy}
                               >
                                 确认还原
                               </button>
-                              <button className="btn !px-2 !py-0.5 text-[10px]" onClick={() => setRestoreTarget(null)}>
+                              <button className="btn !px-2 !py-0.5 text-[10px]" onClick={() => selectRestore(null)}>
                                 取消
                               </button>
                             </span>
                           ) : (
-                            <button className="btn !px-2 !py-0.5 text-[10px]" onClick={() => setRestoreTarget(backup.file)}>
+                            <button className="btn !px-2 !py-0.5 text-[10px]" onClick={() => selectRestore(backup.file)}>
                               <RotateCcw size={10} />
                               还原
                             </button>
