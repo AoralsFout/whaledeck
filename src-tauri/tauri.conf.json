@@ -40,6 +40,13 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "resources": [
+      "binaries/superres/realcugan-ncnn-vulkan.exe",
+      "binaries/superres/vcomp140.dll",
+      "binaries/superres/models-pro/**/*",
+      "binaries/superres/quality/**/*",
+      "binaries/superres/licenses/**/*"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

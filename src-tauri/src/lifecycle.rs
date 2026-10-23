@@ -196,6 +196,7 @@ fn finish_exit(app: &AppHandle, state: &AppState, lifecycle: &mut Lifecycle) -> 
     settle_sessions(state, now_ms())?;
     lifecycle.pending = None;
     lifecycle.exiting = true;
+    state.superres.shutdown();
     app.exit(0);
     Ok(())
 }
@@ -278,6 +279,7 @@ mod tests {
             settings: Mutex::new(Settings::default()),
             sessions: Mutex::new(sessions),
             lifecycle: Mutex::new(Lifecycle::default()),
+            superres: crate::superres::SuperRes::new(),
         }
     }
 

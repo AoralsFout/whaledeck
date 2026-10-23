@@ -97,6 +97,11 @@ impl Store {
         self.root.join("backgrounds")
     }
 
+    /// 超分派生图目录；与 `covers/` 分开，避免整库导出把派生图当成原图复制。
+    pub fn superres_dir(&self) -> PathBuf {
+        self.root.join("superres")
+    }
+
     /// 每个游戏的存档备份：backups/<gameId>/
     pub fn game_backups_dir(&self, game_id: &str) -> PathBuf {
         self.root.join("backups").join(game_id)
@@ -122,6 +127,7 @@ impl Store {
             self.covers_dir(),
             self.icons_dir(),
             self.backgrounds_dir(),
+            self.superres_dir(),
         ] {
             fs::create_dir_all(&dir).map_err(|e| format!("创建目录失败 {}：{e}", dir.display()))?;
         }

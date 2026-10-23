@@ -11,6 +11,7 @@ mod models;
 mod program;
 mod savegame;
 mod store;
+mod superres;
 
 use commands::AppState;
 use store::Store;
@@ -45,6 +46,7 @@ fn init_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         settings: std::sync::Mutex::new(settings),
         sessions: std::sync::Mutex::new(Vec::new()),
         lifecycle: std::sync::Mutex::new(lifecycle::Lifecycle::default()),
+        superres: superres::SuperRes::new(),
     });
     Ok(())
 }
@@ -96,6 +98,11 @@ pub fn run() {
             commands::search_meta,
             commands::apply_meta,
             commands::autofill,
+            superres::superres_status,
+            superres::superres_task,
+            superres::superres_generate,
+            superres::superres_cancel,
+            superres::superres_remove,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

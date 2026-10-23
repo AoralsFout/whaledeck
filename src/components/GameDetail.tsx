@@ -4,7 +4,7 @@
  * 由 App 以游戏 id 作为 key 挂载，切换游戏即重置本地计时/备份/确认状态。
  * 对应文档：docs/界面与交互.md §2.2、docs/前端实现.md §3.1。
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "zustand";
 import {
   Archive,
@@ -13,6 +13,8 @@ import {
   ChevronDown,
   Copy,
   FolderOpen,
+  ImageUp,
+  Loader2,
   Pencil,
   Play,
   RotateCcw,
@@ -21,6 +23,8 @@ import {
   Star,
   Tag,
   Trash2,
+  Wand2,
+  X,
 } from "lucide-react";
 import {
   formatBytes,
@@ -31,8 +35,16 @@ import {
   shortPath,
 } from "../lib/format";
 import { useAssetUrl } from "../lib/useAssetUrl";
-import { api } from "../lib/ipc";
+import {
+  api,
+  onSuperResCancelled,
+  onSuperResDone,
+  onSuperResFailed,
+  onSuperResProgress,
+  type SuperResPreset,
+} from "../lib/ipc";
 import { useLibrary } from "../store/useLibrary";
+import { createCoverSuperres, presetLabel } from "../store/coverSuperres";
 import { createSaveBackups } from "../store/saveBackups";
 import { isProcessTarget, type Game } from "../types";
 import { ActionTooltips } from "./ActionTooltips";
@@ -86,6 +98,21 @@ export function GameDetail({ game }: { game: Game }) {
   const deleteGame = useLibrary((s) => s.deleteGame);
   const showToast = useLibrary((s) => s.showToast);
   const cover = useAssetUrl("cover", game?.coverFile ?? null);
+  const enhanceStore = useMemo(() => createCoverSuperres(game.id, {
+    status: api.superresStatus, task: api.superresTask, generate: api.superresGenerate,
+    cancel: api.superresCancel, remove: api.superresRemove,
+    progress: onSuperResProgress, done: onSuperResDone,
+    failed: onSuperResFailed, cancelled: onSuperResCancelled, notify: showToast,
+  }), [game.id, game.coverFile, showToast]);
+  useEffect(() => enhanceStore.getState().connect(), [enhanceStore]);
+  const enhancement = useStore(enhanceStore);
+  const enhancedFile = enhancement.files[enhancement.preset];
+  const enhanceTask = enhancement.task;
+  const showEnhanced = enhancement.showEnhanced;
+  const enhancedCover = useAssetUrl("superres", enhancedFile);
+  // 增强图未解码完成前继续显示原图，避免切档闪空。
+  const displayCover = showEnhanced && enhancedCover ? enhancedCover : cover;
+  const enhanceBusy = !enhancement.ready || enhancement.pending || Boolean(enhanceTask);
 
   const [elapsed, setElapsed] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -144,8 +171,8 @@ export function GameDetail({ game }: { game: Game }) {
     <div className="game-detail relative flex h-full flex-col overflow-hidden">
       {/* 全幅背景（只用封面，不用图标） */}
       <div className="absolute inset-0">
-        {cover ? (
-          <img src={cover} alt="" className="h-full w-full object-cover" draggable={false} />
+        {displayCover ? (
+          <img src={displayCover} alt="" className="h-full w-full object-cover" draggable={false} />
         ) : (
           <div
             className="h-full w-full"
@@ -419,6 +446,69 @@ export function GameDetail({ game }: { game: Game }) {
                 ? "开始游戏"
                 : "用默认程序打开"}
           </button>
+          <select
+            className="btn !px-2 text-[12px]"
+            aria-label="封面增强档位"
+            value={enhancement.preset}
+            disabled={enhanceBusy || !game.coverFile}
+            onChange={(e) => enhancement.select(e.target.value as SuperResPreset)}
+            title={enhancement.preset === "quality"
+              ? "质量档：细节优先，通常约 8–15 秒，实际依设备与图片而变；选择后点击魔棒生成"
+              : "效率档：通常约 3–6 秒；选择后点击魔棒生成"}
+          >
+            <option value="efficient">效率</option>
+            <option value="quality">质量</option>
+          </select>
+          {enhanceTask ? (
+            <>
+              <span className="flex items-center gap-1.5 text-[12px] text-white/80" role="status" aria-live="polite">
+                <Loader2 size={15} className="animate-spin" aria-hidden="true" />
+                {presetLabel(enhanceTask.preset)}档 · {enhancement.cancelling ? "正在取消" : enhanceTask.stage === "saving" ? "正在保存" : enhanceTask.stage === "resizing" ? "正在调整尺寸" : "正在增强"}
+                {" "}{(enhanceTask.elapsedMs / 1000).toFixed(1)} 秒
+              </span>
+              <button
+                className="btn btn-icon-glass"
+                onClick={() => void enhancement.cancel()}
+                disabled={enhancement.pending || enhancement.cancelling}
+                data-tooltip="取消并终止超分进程"
+                aria-label="取消增强"
+              >
+                <X size={15} />
+              </button>
+            </>
+          ) : enhancedFile ? (
+            <>
+              <button
+                className="btn btn-icon-glass"
+                onClick={enhancement.toggle}
+                data-tooltip={showEnhanced ? "当前显示增强图，点击看原图" : "当前显示原图，点击看增强图"}
+                aria-label="切换原图与增强图"
+                aria-pressed={showEnhanced}
+                style={{ color: showEnhanced ? "#8ad4ff" : undefined }}
+              >
+                <ImageUp size={15} />
+              </button>
+              <button
+                className="btn btn-icon-glass"
+                onClick={() => void enhancement.remove()}
+                disabled={enhanceBusy}
+                data-tooltip="删除此游戏所有档位的增强图，恢复原封面"
+                aria-label="删除增强图"
+              >
+                <Trash2 size={15} />
+              </button>
+            </>
+          ) : (
+            <button
+              className="btn btn-icon-glass"
+              onClick={() => void enhancement.start()}
+              disabled={enhanceBusy || !game.coverFile}
+              data-tooltip={!game.coverFile ? "请先设置封面" : enhancement.preset === "quality" ? "质量档：细节优先，通常约 8–15 秒，实际依设备与图片而变；本机处理" : "效率档：本机增强封面，通常约 3–6 秒"}
+              aria-label="增强封面"
+            >
+              <Wand2 size={15} />
+            </button>
+          )}
           <button
             className="btn btn-icon-glass"
             onClick={() => void toggleFavorite(game.id)}

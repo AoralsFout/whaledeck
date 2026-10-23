@@ -9,7 +9,7 @@ import { loadAssetUrl } from "./assets";
 
 /** 把数据目录里的封面/背景文件名解析成可展示的 asset URL */
 export function useAssetUrl(
-  kind: "cover" | "background" | "icon",
+  kind: "cover" | "background" | "icon" | "superres",
   file: string | null | undefined,
 ): string | null {
   const [asset, setAsset] = useState<{ kind: string; file: string; url: string } | null>(null);

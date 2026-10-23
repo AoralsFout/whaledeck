@@ -24,6 +24,7 @@ pub struct AppState {
     pub settings: Mutex<Settings>,
     pub sessions: Mutex<Vec<Session>>,
     pub lifecycle: Mutex<Lifecycle>,
+    pub superres: crate::superres::SuperRes,
 }
 
 const SCAN_MAX_DEPTH: u32 = 6;
@@ -404,6 +405,7 @@ pub fn asset_path(state: State<'_, AppState>, kind: String, file: String) -> Str
     let dir = match kind.as_str() {
         "background" => state.store.backgrounds_dir(),
         "icon" => state.store.icons_dir(),
+        "superres" => state.store.superres_dir(),
         _ => state.store.covers_dir(),
     };
     dir.join(file).to_string_lossy().to_string()
@@ -766,6 +768,7 @@ mod game_write_tests {
             settings: Mutex::new(Settings::default()),
             sessions: Mutex::new(vec![]),
             lifecycle: Mutex::new(Lifecycle::default()),
+            superres: crate::superres::SuperRes::new(),
         }
     }
 

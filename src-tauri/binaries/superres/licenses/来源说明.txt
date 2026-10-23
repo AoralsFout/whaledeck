@@ -1,0 +1,6 @@
+WhaleDeck 封面增强第三方资源
+效率档：Real-CUGAN up2x-conservative；原有本地资源保持。
+质量档：RealESRGAN_x4plus_anime_6B，realesrgan-x4plus-anime；来自本机 experiments/tools/realesrgan-full，实验下载包 realesrgan-ncnn-vulkan-20220424-windows.zip。
+程序与模型上游：https://github.com/xinntao/Real-ESRGAN / https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan
+仅包含所选模型；vcomp140.dll 为原始 Windows 包所附 Microsoft OpenMP 运行库，保持原样。
+各上游许可证见本目录。

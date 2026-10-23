@@ -9,7 +9,7 @@ import { api, fileUrl } from "./ipc";
 const pendingAssets = new Set<Promise<string | null>>();
 
 /** Resolve and decode local images before committing them to the UI. */
-export function loadAssetUrl(kind: "cover" | "background" | "icon", file: string): Promise<string | null> {
+export function loadAssetUrl(kind: "cover" | "background" | "icon" | "superres", file: string): Promise<string | null> {
   let timer: ReturnType<typeof setTimeout>;
   const load = async () => {
     const url = fileUrl(await api.assetPath(kind, file));

@@ -44,7 +44,7 @@ export const api = {
     invoke<string>("import_icon", { id, src }),
   importBackground: (src: string) =>
     invoke<string>("import_background", { src }),
-  assetPath: (kind: "cover" | "background" | "icon", file: string) =>
+  assetPath: (kind: "cover" | "background" | "icon" | "superres", file: string) =>
     invoke<string>("asset_path", { kind, file }),
   getSettings: () => invoke<Settings>("get_settings"),
   saveSettings: (settings: Settings) =>
@@ -67,6 +67,11 @@ export const api = {
     invoke<Game>("apply_meta", { gameId, item }),
   autofill: (game: Game, field?: AutofillField) =>
     invoke<AutofillResult>("autofill", { game, field: field ?? null }),
+  superresStatus: (id: string, preset: SuperResPreset = "efficient") => invoke<string | null>("superres_status", { id, preset }),
+  superresTask: (id: string) => invoke<SuperResProgress | null>("superres_task", { id }),
+  superresGenerate: (id: string, preset: SuperResPreset = "efficient", taskId?: string) => invoke<string | null>("superres_generate", { id, preset, taskId }),
+  superresCancel: (id: string, taskId?: string) => invoke<boolean>("superres_cancel", { id, taskId }),
+  superresRemove: (id: string) => invoke<void>("superres_remove", { id }),
 };
 
 export function fileUrl(absPath: string): string {
@@ -91,4 +96,46 @@ export function onLaunchFailed(cb: (p: { gameId: string; message: string }) => v
   return listen<{ gameId: string; message: string }>("launch-failed", (e) =>
     cb(e.payload),
   );
+}
+
+/** 超分阶段事件：没有可靠计数，只报阶段与已用时间。 */
+export type SuperResPreset = "efficient" | "quality";
+
+export interface SuperResProgress {
+  taskId: string;
+  preset: SuperResPreset;
+  gameId: string;
+  stage: "processing" | "resizing" | "saving";
+  elapsedMs: number;
+}
+
+export interface SuperResDone {
+  taskId: string;
+  preset: SuperResPreset;
+  gameId: string;
+  file: string;
+  elapsedMs: number;
+}
+
+export interface SuperResFailed {
+  taskId: string;
+  preset: SuperResPreset;
+  gameId: string;
+  message: string;
+}
+
+export function onSuperResProgress(cb: (p: SuperResProgress) => void) {
+  return listen<SuperResProgress>("superres-progress", (e) => cb(e.payload));
+}
+
+export function onSuperResDone(cb: (p: SuperResDone) => void) {
+  return listen<SuperResDone>("superres-done", (e) => cb(e.payload));
+}
+
+export function onSuperResFailed(cb: (p: SuperResFailed) => void) {
+  return listen<SuperResFailed>("superres-failed", (e) => cb(e.payload));
+}
+
+export function onSuperResCancelled(cb: (p: SuperResFailed) => void) {
+  return listen<SuperResFailed>("superres-cancelled", (e) => cb(e.payload));
 }
