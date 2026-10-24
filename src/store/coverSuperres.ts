@@ -6,6 +6,7 @@
  */
 import { createStore } from "zustand/vanilla";
 import type { SuperResDone, SuperResFailed, SuperResPreset, SuperResProgress } from "../lib/ipc";
+import { coverSuperresPreference, type CoverSuperresChoice, type CoverSuperresPreference } from "./coverSuperresPreference";
 
 type Off = () => void;
 interface Dependencies {
@@ -25,6 +26,7 @@ interface State {
   files: Record<SuperResPreset, string | null>;
   task: Omit<SuperResProgress, "gameId"> | null;
   ready: boolean;
+  filesReady: boolean;
   pending: boolean;
   cancelling: boolean;
   showEnhanced: boolean;
@@ -37,8 +39,21 @@ interface State {
 }
 export const presetLabel = (preset: SuperResPreset) => preset === "quality" ? "质量" : "效率";
 
+/** 未查明缓存前不能回退原图；详情只加载这一处确定的资源。 */
+export function coverSuperresSource(state: Pick<State, "preset" | "showEnhanced" | "files" | "filesReady">, cover: string | null): { kind: "cover" | "superres"; file: string } | null {
+  if (!cover || (state.showEnhanced && !state.filesReady)) return null;
+  const enhanced = state.showEnhanced ? state.files[state.preset] : null;
+  return enhanced ? { kind: "superres", file: enhanced } : { kind: "cover", file: cover };
+}
+
 /** 每个游戏/封面一个 store；作用域隔离卸载，任务标识隔离连续生成与取消。 */
-export function createCoverSuperres(gameId: string, deps: Dependencies) {
+export function createCoverSuperres(gameId: string, deps: Dependencies, preference: CoverSuperresPreference = coverSuperresPreference) {
+  const choice = preference.read(gameId);
+  let hasChoice = Boolean(choice);
+  const remember = (value: CoverSuperresChoice) => {
+    hasChoice = true;
+    preference.write(gameId, { preset: value.preset, showEnhanced: value.showEnhanced });
+  };
   let scope = 0;
   let connected = false;
   let action = 0;
@@ -47,13 +62,13 @@ export function createCoverSuperres(gameId: string, deps: Dependencies) {
   const retired = new Set<string>();
   const current = (value: number) => connected && value === scope;
   return createStore<State>((set, get) => ({
-    preset: "efficient", files: { efficient: null, quality: null },
-    task: null, ready: false, pending: false, cancelling: false, showEnhanced: true,
+    preset: choice?.preset ?? "efficient", files: { efficient: null, quality: null }, filesReady: false,
+    task: null, ready: false, pending: false, cancelling: false, showEnhanced: choice?.showEnhanced ?? true,
     connect: () => {
       const lifetime = ++scope;
       connected = true;
       action += 1;
-      set({ ready: false, pending: false, cancelling: false, task: null });
+      set({ ready: false, filesReady: false, pending: false, cancelling: false, task: null });
       const matches = (p: { gameId: string }) => current(lifetime) && p.gameId === gameId;
       const adopt = (p: SuperResProgress) => {
         if (!matches(p) || retired.has(p.taskId)) return;
@@ -61,7 +76,7 @@ export function createCoverSuperres(gameId: string, deps: Dependencies) {
         // 本地生成请求尚未确认时，旧任务的迟到进度不能替换它。
         if (get().task && get().task?.taskId !== p.taskId && get().pending) return;
         taskRevision += 1;
-        set({ preset: p.preset, task: { taskId: p.taskId, preset: p.preset, stage: p.stage, elapsedMs: p.elapsedMs }, pending: false });
+        set({ ...(!hasChoice ? { preset: p.preset } : {}), task: { taskId: p.taskId, preset: p.preset, stage: p.stage, elapsedMs: p.elapsedMs }, pending: false });
       };
       const settle = (p: { gameId: string; taskId: string }) => {
         if (!matches(p) || retired.has(p.taskId)) return false;
@@ -85,16 +100,31 @@ export function createCoverSuperres(gameId: string, deps: Dependencies) {
           // 原图可在任务中被修改，不能直接相信完成事件里的文件。
           void deps.status(gameId, p.preset).then((file) => {
             if (!current(lifetime) || fileRevision[p.preset] !== version || file !== p.file) return;
-            set((s) => ({ files: { ...s.files, [p.preset]: file }, showEnhanced: true }));
+            set((s) => ({ files: { ...s.files, [p.preset]: file }, ...(s.preset === p.preset ? { showEnhanced: true } : {}) }));
+            if (get().preset === p.preset) remember(get());
             deps.notify("success", `${presetLabel(p.preset)}档封面已增强（${(p.elapsedMs / 1000).toFixed(1)} 秒）`);
           }).catch(() => {});
         }),
         deps.failed((p) => finish(p, "error", `封面增强失败：${p.message}`)),
         deps.cancelled((p) => finish(p, "info", "已取消封面增强")),
       ];
+      // 两档完成前不把 null 当作缓存不存在；查询仍在订阅后发出，避免漏掉完成事件。
+      const loadFiles = () => Promise.all((["efficient", "quality"] as const).map(async (preset) => {
+        const version = fileRevision[preset];
+        try {
+          const file = await deps.status(gameId, preset);
+          if (current(lifetime) && version === fileRevision[preset]) set((s) => ({ files: { ...s.files, [preset]: file } }));
+        } catch { /* 读取失败仍可显式生成，由生成命令报告具体原因。 */ }
+      })).then(() => {
+        if (!current(lifetime)) return;
+        const state = get();
+        const preset = state.task?.preset ?? (state.files.efficient ? "efficient" : state.files.quality ? "quality" : "efficient");
+        set({ filesReady: true, ...(!hasChoice ? { preset } : {}) });
+      });
       void Promise.allSettled(subscriptions).then(async (results) => {
         if (!current(lifetime)) return;
         if (results.some((r) => r.status === "rejected")) {
+          void loadFiles();
           deps.notify("error", "封面增强事件连接失败，请重新打开详情页");
           return;
         }
@@ -104,13 +134,7 @@ export function createCoverSuperres(gameId: string, deps: Dependencies) {
             if (!current(lifetime) || version !== taskRevision) return;
             if (task) adopt(task);
           }).catch(() => {}),
-          ...(["efficient", "quality"] as const).map(async (preset) => {
-            const version = fileRevision[preset];
-            try {
-              const file = await deps.status(gameId, preset);
-              if (current(lifetime) && version === fileRevision[preset]) set((s) => ({ files: { ...s.files, [preset]: file } }));
-            } catch { /* 读取失败仍可显式生成，由生成命令报告具体原因。 */ }
-          }),
+          loadFiles(),
         ]);
         if (current(lifetime)) set({ ready: true });
       });
@@ -119,8 +143,12 @@ export function createCoverSuperres(gameId: string, deps: Dependencies) {
         subscriptions.forEach((p) => void p.then((off) => off()).catch(() => {}));
       };
     },
-    select: (preset) => { if (!get().task && !get().pending) set({ preset, showEnhanced: true }); },
-    toggle: () => set((s) => ({ showEnhanced: !s.showEnhanced })),
+    select: (preset) => {
+      if (get().task || get().pending) return;
+      set({ preset, showEnhanced: true });
+      remember(get());
+    },
+    toggle: () => { set((s) => ({ showEnhanced: !s.showEnhanced })); remember(get()); },
     start: async () => {
       if (!connected || !get().ready || get().task || get().pending) return;
       const lifetime = scope;
@@ -138,6 +166,7 @@ export function createCoverSuperres(gameId: string, deps: Dependencies) {
           retired.add(taskId);
           fileRevision[preset] += 1;
           set((s) => ({ files: { ...s.files, [preset]: file }, task: null, pending: false, showEnhanced: true }));
+          remember(get());
           deps.notify("info", "已复用现有的增强封面");
         } else set({ pending: false });
       } catch (error) {

@@ -4,7 +4,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import type { SuperResDone, SuperResFailed, SuperResPreset, SuperResProgress } from "../lib/ipc";
-import { createCoverSuperres } from "./coverSuperres";
+import { coverSuperresSource, createCoverSuperres } from "./coverSuperres";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -28,12 +28,82 @@ function setup() {
     failed: async (cb: typeof failed) => { failed = cb; return off; },
     cancelled: async (cb: typeof cancelled) => { cancelled = cb; return off; },
   };
-  const store = createCoverSuperres("g", deps);
+  const store = createCoverSuperres("g", deps, { read: () => null, write: vi.fn() });
   return { store, deps, off, progress: (p: SuperResProgress) => progress(p), done: (p: SuperResDone) => done(p),
     failed: (p: SuperResFailed) => failed(p), cancelled: (p: SuperResFailed) => cancelled(p) };
 }
 
 describe("封面超分", () => {
+  it("切换游戏重建详情后恢复该游戏的质量档及原图选择", async () => {
+    const { deps } = setup();
+    let choice = { preset: "efficient" as SuperResPreset, showEnhanced: true };
+    const preference = { read: () => choice, write: (_id: string, value: typeof choice) => { choice = value; } };
+    const first = createCoverSuperres("g", deps, preference);
+    const disconnect = first.getState().connect(); await flush();
+    first.getState().select("quality");
+    first.getState().toggle();
+    disconnect();
+    const second = createCoverSuperres("g", deps, preference);
+    second.getState().connect(); await flush();
+    expect(second.getState()).toMatchObject({ preset: "quality", showEnhanced: false });
+  });
+
+  it("没有选择记录且只有质量缓存时直接选择质量档", async () => {
+    const { store, deps } = setup();
+    deps.status.mockImplementation(async (_, preset) => preset === "quality" ? "quality.png" : null);
+    store.getState().connect(); await flush();
+    expect(store.getState()).toMatchObject({ preset: "quality", showEnhanced: true });
+  });
+
+  it("两档查询结束前不能把未知缓存当作不存在", async () => {
+    const { store, deps } = setup();
+    const quality = deferred<string | null>();
+    deps.status.mockImplementation(async (_, preset) => preset === "quality" ? quality.promise : null);
+    store.getState().connect(); await flush();
+    expect(store.getState()).toMatchObject({ filesReady: false });
+    quality.resolve("quality.png"); await flush();
+    expect(store.getState()).toMatchObject({ filesReady: true, preset: "quality" });
+  });
+
+  it("查询期间与质量缓存就绪后都不会选择原图资源", async () => {
+    const { store, deps } = setup();
+    const efficient = deferred<string | null>();
+    const quality = deferred<string | null>();
+    deps.status.mockImplementation((_, preset) => preset === "quality" ? quality.promise : efficient.promise);
+    const sources: ReturnType<typeof coverSuperresSource>[] = [];
+    const sample = () => sources.push(coverSuperresSource(store.getState(), "original.png"));
+    store.subscribe(sample);
+    sample(); store.getState().connect(); await flush();
+    efficient.resolve(null); await flush();
+    expect(sources.every((source) => source === null)).toBe(true);
+    quality.resolve("quality.png"); await flush();
+    expect(coverSuperresSource(store.getState(), "original.png")).toEqual({ kind: "superres", file: "quality.png" });
+    expect(sources.some((source) => source?.kind === "cover")).toBe(false);
+  });
+
+  it("记住的质量档缺失时保留档位，查明后才选择原图", async () => {
+    const { deps } = setup();
+    deps.status.mockImplementation(async (_, preset) => preset === "efficient" ? "efficient.png" : null);
+    const preference = { read: () => ({ preset: "quality" as const, showEnhanced: true }), write: vi.fn() };
+    const store = createCoverSuperres("g", deps, preference);
+    expect(coverSuperresSource(store.getState(), "original.png")).toBeNull();
+    store.getState().connect(); await flush();
+    expect(store.getState().preset).toBe("quality");
+    expect(coverSuperresSource(store.getState(), "original.png")).toEqual({ kind: "cover", file: "original.png" });
+  });
+
+  it("恢复运行中任务不会覆盖已记住的显示选择", async () => {
+    const { deps, progress } = setup();
+    deps.task.mockResolvedValue({ gameId: "g", taskId: "running", preset: "efficient", stage: "processing", elapsedMs: 100 });
+    const preference = { read: () => ({ preset: "quality" as const, showEnhanced: false }), write: vi.fn() };
+    const store = createCoverSuperres("g", deps, preference);
+    store.getState().connect(); await flush();
+    progress({ gameId: "g", taskId: "running", preset: "efficient", stage: "saving", elapsedMs: 200 });
+    expect(store.getState()).toMatchObject({ preset: "quality", showEnhanced: false, task: { preset: "efficient", stage: "saving" } });
+    expect(preference.write).not.toHaveBeenCalled();
+  });
+
+
   it("删除期间的迟到进度和完成不能中断删除或恢复旧文件", async () => {
     const { store, deps, progress, done } = setup();
     deps.status.mockResolvedValue("existing.png");

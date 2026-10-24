@@ -44,7 +44,7 @@ import {
   type SuperResPreset,
 } from "../lib/ipc";
 import { useLibrary } from "../store/useLibrary";
-import { createCoverSuperres, presetLabel } from "../store/coverSuperres";
+import { coverSuperresSource, createCoverSuperres, presetLabel } from "../store/coverSuperres";
 import { createSaveBackups } from "../store/saveBackups";
 import type { CoverQuickEditor } from "../store/coverQuickEdit";
 import { isProcessTarget, type Game } from "../types";
@@ -99,7 +99,6 @@ export const GameDetail = memo(function GameDetail({ game, coverEditor }: { game
   const applyGame = useLibrary((s) => s.applyGame);
   const deleteGame = useLibrary((s) => s.deleteGame);
   const showToast = useLibrary((s) => s.showToast);
-  const cover = useAssetUrl("cover", game?.coverFile ?? null);
   const enhanceStore = useMemo(() => createCoverSuperres(game.id, {
     status: api.superresStatus, task: api.superresTask, generate: api.superresGenerate,
     cancel: api.superresCancel, remove: api.superresRemove,
@@ -111,9 +110,9 @@ export const GameDetail = memo(function GameDetail({ game, coverEditor }: { game
   const enhancedFile = enhancement.files[enhancement.preset];
   const enhanceTask = enhancement.task;
   const showEnhanced = enhancement.showEnhanced;
-  const enhancedCover = useAssetUrl("superres", enhancedFile);
-  // 增强图未解码完成前继续显示原图，避免切档闪空。
-  const displayCover = showEnhanced && enhancedCover ? enhancedCover : cover;
+  const coverSource = coverSuperresSource(enhancement, game.coverFile);
+  // 只解码最终目标；查询与解码期间保持占位背景，避免原图闪现。
+  const displayCover = useAssetUrl(coverSource?.kind ?? "cover", coverSource?.file);
   const enhanceBusy = !enhancement.ready || enhancement.pending || Boolean(enhanceTask);
   const setSuperresProgress = useLibrary((s) => s.setSuperresProgress);
   const progressText = enhanceTask
