@@ -1,9 +1,9 @@
 /**
- * @file 窗口控制旁的封面手柄：滚轮缩放、锁定鼠标拖动与设置入口。
+ * @file 窗口控制旁的封面调整把手：滚轮缩放、锁定鼠标拖动与设置入口。
  * 不修改图片文件；对应文档：docs/界面与交互.md §2.1、docs/前端实现.md §4.2.2。
  */
 import { useEffect, useRef, useState } from "react";
-import { Gamepad2 } from "lucide-react";
+import { Move } from "lucide-react";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { dragCoverFraming } from "../lib/coverFraming";
@@ -58,7 +58,7 @@ export function CoverFramingControl({ editor, disabled }: { editor?: CoverQuickE
         Promise.resolve(target.requestPointerLock()).catch(() => {
           if (!alive || !active) return;
           finish(false);
-          useLibrary.getState().showToast("error", "无法锁定鼠标，请点击手柄进入封面设置调整。");
+          useLibrary.getState().showToast("error", "无法锁定鼠标，请点击调整把手进入封面设置调整。");
         }).finally(() => {
           requesting = false;
           if ((!alive || !active) && document.pointerLockElement === target) document.exitPointerLock();
@@ -66,7 +66,7 @@ export function CoverFramingControl({ editor, disabled }: { editor?: CoverQuickE
       } catch {
         requesting = false;
         finish(false);
-        useLibrary.getState().showToast("error", "无法锁定鼠标，请点击手柄进入封面设置调整。");
+        useLibrary.getState().showToast("error", "无法锁定鼠标，请点击调整把手进入封面设置调整。");
       }
     };
     const move = (event: MouseEvent) => {
@@ -122,7 +122,7 @@ export function CoverFramingControl({ editor, disabled }: { editor?: CoverQuickE
       if (event.detail !== 0 && suppressClick.current) { suppressClick.current = false; return; }
       void editor?.commit().then(() => useLibrary.getState().openCoverSettings());
       if (!editor) useLibrary.getState().openCoverSettings();
-    }}><Gamepad2 size={17} aria-hidden="true" /></button>;
+    }}><Move size={17} aria-hidden="true" /></button>;
 }
 
 // 加载期同样保持 Hook 调用顺序；此状态不参与持久化。
