@@ -2,7 +2,7 @@
  * @file 窗口控制旁的封面调整把手：滚轮缩放、锁定鼠标拖动与设置入口。
  * 不修改图片文件；对应文档：docs/界面与交互.md §2.1、docs/前端实现.md §4.2.2。
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Move } from "lucide-react";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
@@ -17,6 +17,16 @@ export function CoverFramingControl({ editor, disabled }: { editor?: CoverQuickE
   const [dragging, setDragging] = useState(false);
   const suppressClick = useRef(false);
   const saving = useStore(editor ?? emptyEditor, state => state.saving);
+  const openSettings = useCallback(() => {
+    const selectedId = useLibrary.getState().selectedId;
+    const open = () => {
+      const state = useLibrary.getState();
+      // 等待滚轮保存期间若切换游戏，不再弹出旧手势触发的设置。
+      if (state.selectedId === selectedId) state.openCoverSettings();
+    };
+    if (editor) void editor.commit().then(open);
+    else open();
+  }, [editor]);
 
   useEffect(() => {
     const target = button.current;
@@ -84,8 +94,18 @@ export function CoverFramingControl({ editor, disabled }: { editor?: CoverQuickE
       active.framing = dragCoverFraming(active.framing, dx, dy, active.view, active.image);
       editor.preview(active.framing);
     };
-    const up = (event: MouseEvent) => { if (event.button === 0) finish(true); };
-    const cancel = () => finish(false);
+    const up = (event: MouseEvent) => {
+      if (event.button !== 0 || !active) return;
+      const clicked = !active.moved;
+      // 解锁后 click 可能不再投递到按钮；在释放时完成激活，并去重后续 click。
+      suppressClick.current = true;
+      finish(true);
+      if (clicked) openSettings();
+    };
+    const cancel = () => {
+      if (active) suppressClick.current = true;
+      finish(false);
+    };
     const lockChanged = () => { if (document.pointerLockElement !== target) cancel(); };
     const key = (event: KeyboardEvent) => { if (event.key === "Escape") cancel(); };
     const wheel = (event: WheelEvent) => {
@@ -119,15 +139,14 @@ export function CoverFramingControl({ editor, disabled }: { editor?: CoverQuickE
       finish(false);
       if (wheelTimer !== undefined) flush();
     };
-  }, [editor, disabled]);
+  }, [editor, disabled, openSettings]);
 
   return <button ref={button} type="button" className="window-control cover-framing-control"
     disabled={disabled} data-dragging={dragging} aria-label="调整当前游戏封面" aria-busy={saving}
     title="封面取景：滚轮缩放，按住拖动，点击打开封面设置"
     onClick={event => {
-      if (event.detail !== 0 && suppressClick.current) { suppressClick.current = false; return; }
-      void editor?.commit().then(() => useLibrary.getState().openCoverSettings());
-      if (!editor) useLibrary.getState().openCoverSettings();
+      if (event.detail !== 0 && suppressClick.current) return;
+      openSettings();
     }}><Move size={17} aria-hidden="true" /></button>;
 }
 
