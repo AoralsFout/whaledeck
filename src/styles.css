@@ -85,7 +85,7 @@ body {
   background: var(--bg);
   color-scheme: var(--app-color-scheme);
   border-radius: var(--window-radius);
-  /* 同时裁剪背景、固定定位的弹窗与浮层，露出真正透明的窗口四角。 */
+  /* 裁剪背景与普通浮层；原生 dialog 的顶层遮罩需单独裁剪。 */
   clip-path: inset(0 round var(--window-radius));
   isolation: isolate;
 }
@@ -666,7 +666,12 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
   color-scheme: var(--app-color-scheme);
 }
 .modal[open] { display: flex; align-items: center; justify-content: center; }
-.modal::backdrop { background: rgb(0 0 0 / 55%); backdrop-filter: blur(3px); }
+/* 顶层遮罩不受 #root 的裁剪约束，需跟随窗口圆角单独裁剪。 */
+.modal::backdrop {
+  background: rgb(0 0 0 / 55%);
+  backdrop-filter: blur(3px);
+  clip-path: inset(0 round var(--window-radius));
+}
 /* 设置内容较长，滚动时无需重复合成整窗模糊背景。 */
 .modal:has(.settings-header)::backdrop { backdrop-filter: none; }
 .modal-panel {
