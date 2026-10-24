@@ -103,6 +103,7 @@ pub enum BackgroundFitMode {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SidebarBackgroundFit {
+    // 保留历史字段；前端始终适配，新配置与缺省配置均开启。
     pub enabled: bool,
     pub mode: BackgroundFitMode,
     pub position_x: u8,
@@ -112,7 +113,7 @@ pub struct SidebarBackgroundFit {
 impl Default for SidebarBackgroundFit {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled: true,
             mode: BackgroundFitMode::Contain,
             position_x: 50,
             position_y: 50,

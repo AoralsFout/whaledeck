@@ -5,10 +5,10 @@
 import type { BackgroundSource, SidebarBackgroundFit, Theme } from "../types";
 
 export const DEFAULT_BACKGROUND_FIT: Readonly<SidebarBackgroundFit> = {
-  enabled: false, mode: "contain", positionX: 50, positionY: 50,
+  enabled: true, mode: "contain", positionX: 50, positionY: 50,
 };
 
-/** 来源沿用已有自定义图片与磨砂封面规则，关闭适配不改变来源。 */
+/** 自定义图片优先，磨砂与清晰背景均可使用当前游戏封面。 */
 export function sidebarBackgroundSource(theme: Theme, cover: string | null | undefined): BackgroundSource | null {
   if (theme.sidebarBackgroundFile) return { sourceKind: "background", file: theme.sidebarBackgroundFile };
   return (theme.sidebarGlass || theme.sidebarClearGlass) && cover ? { sourceKind: "cover", file: cover } : null;
