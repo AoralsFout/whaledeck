@@ -1,10 +1,10 @@
 /**
  * @file 游戏详情：封面背景、可展开信息、固定操作栏与统计栏。
  *
- * 由 App 以游戏 id 作为 key 挂载，切换游戏即重置本地计时/备份/确认状态。
+ * 外层封面跨游戏保留；内容区以游戏 id 为 key，隔离计时/备份/确认状态。
  * 对应文档：docs/界面与交互.md §2.2、docs/前端实现.md §3.1。
  */
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useStore } from "zustand";
 import {
   Archive,
@@ -33,7 +33,6 @@ import {
   formatTimer,
   shortPath,
 } from "../lib/format";
-import { useAssetUrl } from "../lib/useAssetUrl";
 import { coverFraming, coverFramingStyle } from "../lib/coverFraming";
 import {
   api,
@@ -45,6 +44,7 @@ import {
 } from "../lib/ipc";
 import { useLibrary } from "../store/useLibrary";
 import { coverSuperresSource, createCoverSuperres, presetLabel } from "../store/coverSuperres";
+import { createCoverArtwork } from "../store/coverArtwork";
 import { createSaveBackups } from "../store/saveBackups";
 import type { CoverQuickEditor } from "../store/coverQuickEdit";
 import { isProcessTarget, type Game } from "../types";
@@ -91,13 +91,6 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
  */
 export const GameDetail = memo(function GameDetail({ game, coverEditor }: { game: Game; coverEditor: CoverQuickEditor }) {
   const framingDraft = useStore(coverEditor, state => state.draft);
-  const running = useLibrary((s) => s.sessions.find((x) => x.gameId === game.id));
-  const openEdit = useLibrary((s) => s.openEdit);
-  const openMeta = useLibrary((s) => s.openMeta);
-  const launch = useLibrary((s) => s.launchGame);
-  const toggleFavorite = useLibrary((s) => s.toggleFavorite);
-  const applyGame = useLibrary((s) => s.applyGame);
-  const deleteGame = useLibrary((s) => s.deleteGame);
   const showToast = useLibrary((s) => s.showToast);
   const enhanceStore = useMemo(() => createCoverSuperres(game.id, {
     status: api.superresStatus, task: api.superresTask, generate: api.superresGenerate,
@@ -107,12 +100,47 @@ export const GameDetail = memo(function GameDetail({ game, coverEditor }: { game
   }), [game.id, game.coverFile, showToast]);
   useEffect(() => enhanceStore.getState().connect(), [enhanceStore]);
   const enhancement = useStore(enhanceStore);
+  const coverSource = coverSuperresSource(enhancement, game.coverFile);
+  const framing = framingDraft ?? coverFraming(game);
+  const scope = JSON.stringify([game.id, game.coverFile]);
+  const [artwork] = useState(() => createCoverArtwork());
+  const frame = useStore(artwork, state => state.frame);
+  useEffect(() => () => artwork.getState().dispose(), [artwork]);
+  // 先保留已显示的图像及其取景；只对选定资源解码，成功后一起替换。
+  useLayoutEffect(() => {
+    artwork.getState().update(scope, !game.coverFile ? null : coverSource ?? undefined, framing);
+  }, [artwork, scope, game.coverFile, coverSource?.kind, coverSource?.file,
+    framing.file, framing.positionX, framing.positionY, framing.zoom]);
+
+  return (
+    <div className="game-detail relative flex h-full flex-col overflow-hidden">
+      <div className="absolute inset-0">
+        {frame ? (
+          <img src={frame.url} alt="" className="game-cover-art h-full w-full object-cover" data-cover-current={frame.scope === scope} style={coverFramingStyle(frame.framing)} draggable={false} />
+        ) : (
+          <div className="h-full w-full" style={{ background: "linear-gradient(135deg, rgba(var(--primary-rgb), .22), rgba(var(--accent-rgb), .14) 50%, var(--hero-bg))" }} />
+        )}
+        <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(5,9,18,.06) 0%, rgba(5,9,18,.2) 36%, rgba(5,9,18,.58) 64%, rgba(8,13,26,.88) 84%, var(--hero-bg) 100%)" }} />
+      </div>
+      <GameDetailContent key={game.id} game={game} enhanceStore={enhanceStore} />
+    </div>
+  );
+});
+
+/** 游戏专属内容按 id 重建，避免跨游戏复用备份、确认或计时状态。 */
+function GameDetailContent({ game, enhanceStore }: { game: Game; enhanceStore: ReturnType<typeof createCoverSuperres> }) {
+  const running = useLibrary((s) => s.sessions.find((x) => x.gameId === game.id));
+  const openEdit = useLibrary((s) => s.openEdit);
+  const openMeta = useLibrary((s) => s.openMeta);
+  const launch = useLibrary((s) => s.launchGame);
+  const toggleFavorite = useLibrary((s) => s.toggleFavorite);
+  const applyGame = useLibrary((s) => s.applyGame);
+  const deleteGame = useLibrary((s) => s.deleteGame);
+  const showToast = useLibrary((s) => s.showToast);
+  const enhancement = useStore(enhanceStore);
   const enhancedFile = enhancement.files[enhancement.preset];
   const enhanceTask = enhancement.task;
   const showEnhanced = enhancement.showEnhanced;
-  const coverSource = coverSuperresSource(enhancement, game.coverFile);
-  // 只解码最终目标；查询与解码期间保持占位背景，避免原图闪现。
-  const displayCover = useAssetUrl(coverSource?.kind ?? "cover", coverSource?.file);
   const enhanceBusy = !enhancement.ready || enhancement.pending || Boolean(enhanceTask);
   const setSuperresProgress = useLibrary((s) => s.setSuperresProgress);
   const progressText = enhanceTask
@@ -178,29 +206,7 @@ export const GameDetail = memo(function GameDetail({ game, coverEditor }: { game
   };
 
   return (
-    <div className="game-detail relative flex h-full flex-col overflow-hidden">
-      {/* 全幅背景（只用封面，不用图标） */}
-      <div className="absolute inset-0">
-        {displayCover ? (
-          <img src={displayCover} alt="" className="game-cover-art h-full w-full object-cover" style={coverFramingStyle(framingDraft ?? coverFraming(game))} draggable={false} />
-        ) : (
-          <div
-            className="h-full w-full"
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(var(--primary-rgb), .22), rgba(var(--accent-rgb), .14) 50%, var(--hero-bg))",
-            }}
-          />
-        )}
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(180deg, rgba(5,9,18,.06) 0%, rgba(5,9,18,.2) 36%, rgba(5,9,18,.58) 64%, rgba(8,13,26,.88) 84%, var(--hero-bg) 100%)",
-          }}
-        />
-      </div>
-
+    <>
       {/* 内容 */}
       <div
         className="relative min-h-0 flex-1 overflow-y-auto"
@@ -551,6 +557,6 @@ export const GameDetail = memo(function GameDetail({ game, coverEditor }: { game
           {game.source && <Stat icon={<CloudDownload size={14} />} label="来源" value={game.source} />}
         </div>
       </footer>
-    </div>
+    </>
   );
-});
+}

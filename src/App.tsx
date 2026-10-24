@@ -128,7 +128,7 @@ export default function App() {
       <WindowChrome coverEditor={coverEditor} coverDisabled={formOpen || settingsOpen || scanOpen || metaOpen} />
       <SidebarNavigation open={navigationOpen} onOpenChange={setNavigationOpen} autoHide={settings?.theme.sidebarAutoHide ?? true} dialogOpen={formOpen || settingsOpen || scanOpen || metaOpen} />
       <main id="main-content" tabIndex={-1} className="relative min-h-0 min-w-0 flex-1">
-        {selected ? <GameDetail key={selected.id} game={selected} coverEditor={coverEditor} /> : <EmptyState onAdd={openNew} filtered={gameCount > 0} onReset={() => {
+        {selected ? <GameDetail game={selected} coverEditor={coverEditor} /> : <EmptyState onAdd={openNew} filtered={gameCount > 0} onReset={() => {
           useLibrary.getState().setQuery("");
           useLibrary.getState().setNav({ type: "all" });
         }} />}
