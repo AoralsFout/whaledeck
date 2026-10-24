@@ -14,7 +14,6 @@ import {
   Copy,
   FolderOpen,
   ImageUp,
-  Loader2,
   Pencil,
   Play,
   RotateCcw,
@@ -114,6 +113,15 @@ export const GameDetail = memo(function GameDetail({ game }: { game: Game }) {
   // 增强图未解码完成前继续显示原图，避免切档闪空。
   const displayCover = showEnhanced && enhancedCover ? enhancedCover : cover;
   const enhanceBusy = !enhancement.ready || enhancement.pending || Boolean(enhanceTask);
+  const setSuperresProgress = useLibrary((s) => s.setSuperresProgress);
+  const progressText = enhanceTask
+    ? `${presetLabel(enhanceTask.preset)}档 · ${enhancement.cancelling ? "正在取消" : enhanceTask.stage === "saving" ? "正在保存" : enhanceTask.stage === "resizing" ? "正在调整尺寸" : "正在增强"} ${(enhanceTask.elapsedMs / 1000).toFixed(1)} 秒`
+    : null;
+  // 只同步展示文案；终态清空任务时隐藏提示，切换详情时避免残留上一张封面的进度。
+  useEffect(() => {
+    setSuperresProgress(progressText);
+    return () => setSuperresProgress(null);
+  }, [progressText, setSuperresProgress]);
 
   const [elapsed, setElapsed] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -461,22 +469,15 @@ export const GameDetail = memo(function GameDetail({ game }: { game: Game }) {
             <option value="quality">质量</option>
           </select>
           {enhanceTask ? (
-            <>
-              <span className="flex items-center gap-1.5 text-[12px] text-white/80" role="status" aria-live="polite">
-                <Loader2 size={15} className="animate-spin" aria-hidden="true" />
-                {presetLabel(enhanceTask.preset)}档 · {enhancement.cancelling ? "正在取消" : enhanceTask.stage === "saving" ? "正在保存" : enhanceTask.stage === "resizing" ? "正在调整尺寸" : "正在增强"}
-                {" "}{(enhanceTask.elapsedMs / 1000).toFixed(1)} 秒
-              </span>
-              <button
-                className="btn btn-icon-glass"
-                onClick={() => void enhancement.cancel()}
-                disabled={enhancement.pending || enhancement.cancelling}
-                data-tooltip="取消并终止超分进程"
-                aria-label="取消增强"
-              >
-                <X size={15} />
-              </button>
-            </>
+            <button
+              className="btn btn-icon-glass"
+              onClick={() => void enhancement.cancel()}
+              disabled={enhancement.pending || enhancement.cancelling}
+              data-tooltip="取消并终止超分进程"
+              aria-label="取消增强"
+            >
+              <X size={15} />
+            </button>
           ) : enhancedFile ? (
             <>
               <button
