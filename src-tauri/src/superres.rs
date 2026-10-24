@@ -185,7 +185,7 @@ struct LookupCache {
 }
 
 impl LookupCache {
-    /// 文件属性未变时跳过读原图和完整 PNG 解码；缺失或变化会自然失效。
+    /// 展示只定位候选文件，不做图片解码；原图哈希仍按文件属性复用。
     fn status(
         &mut self,
         cover: &Path,
@@ -200,6 +200,26 @@ impl LookupCache {
             })
             .map_err(|e| format!("读取封面失败：{e}"))?;
         let name = cache_name(id, hash, preset.cache_key());
+        let exists = fs::metadata(dir.join(&name))
+            .is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0);
+        Ok(exists.then_some(name))
+    }
+
+    /// 只有生成命令需要判断是否可复用；前端已拒绝的图片直接重建。
+    fn reusable(
+        &mut self,
+        cover: &Path,
+        dir: &Path,
+        id: &str,
+        preset: Preset,
+        force: bool,
+    ) -> Result<Option<String>, String> {
+        if force {
+            return Ok(None);
+        }
+        let Some(name) = self.status(cover, dir, id, preset)? else {
+            return Ok(None);
+        };
         let valid = self
             .images
             .get(&dir.join(&name), |path| Ok(valid_cache(path)))
@@ -526,6 +546,7 @@ struct Request {
     game_id: String,
     preset: Preset,
     task_id: String,
+    force: bool,
 }
 
 /// 生成派生图；返回 `Ok(Some(name))` 表示命中缓存，`Ok(None)` 表示已开始后台任务。
@@ -541,12 +562,13 @@ fn generate(
         game_id,
         preset,
         task_id,
+        force,
     } = request;
     let cached = superres
         .lookup
         .lock()
         .map_err(|_| "封面缓存状态不可用".to_string())?
-        .status(&cover, &dir, &game_id, preset)?;
+        .reusable(&cover, &dir, &game_id, preset, force)?;
     if let Some(name) = cached {
         return Ok(Some(name));
     }
@@ -739,6 +761,89 @@ mod tests {
     use super::*;
 
     #[test]
+    fn view_status_returns_existing_candidate_without_decoding_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let cover = dir.path().join("original.png");
+        fs::write(&cover, b"original").unwrap();
+        let name = cache_name(
+            "g",
+            content_hash(b"original"),
+            Preset::Efficient.cache_key(),
+        );
+        fs::write(dir.path().join(&name), b"not a decodable PNG").unwrap();
+        let mut lookup = LookupCache::default();
+        assert_eq!(
+            lookup
+                .status(&cover, dir.path(), "g", Preset::Efficient)
+                .unwrap(),
+            Some(name)
+        );
+    }
+
+    #[test]
+    fn view_status_skips_missing_empty_and_directory_candidates() {
+        let dir = tempfile::tempdir().unwrap();
+        let cover = dir.path().join("original.png");
+        fs::write(&cover, b"original").unwrap();
+        let path = dir.path().join(cache_name(
+            "g",
+            content_hash(b"original"),
+            Preset::Efficient.cache_key(),
+        ));
+        let mut lookup = LookupCache::default();
+        assert_eq!(
+            lookup
+                .status(&cover, dir.path(), "g", Preset::Efficient)
+                .unwrap(),
+            None
+        );
+        fs::write(&path, b"").unwrap();
+        assert_eq!(
+            lookup
+                .status(&cover, dir.path(), "g", Preset::Efficient)
+                .unwrap(),
+            None
+        );
+        fs::remove_file(&path).unwrap();
+        fs::create_dir(&path).unwrap();
+        assert_eq!(
+            lookup
+                .status(&cover, dir.path(), "g", Preset::Efficient)
+                .unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn forced_generation_bypasses_even_valid_cache_and_preserves_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let cover = dir.path().join("original.png");
+        fs::write(&cover, b"original").unwrap();
+        let name = cache_name(
+            "g",
+            content_hash(b"original"),
+            Preset::Efficient.cache_key(),
+        );
+        let path = dir.path().join(&name);
+        image::DynamicImage::new_rgb8(12, 8).save(&path).unwrap();
+        let before = fs::read(&path).unwrap();
+        let mut lookup = LookupCache::default();
+        assert_eq!(
+            lookup
+                .reusable(&cover, dir.path(), "g", Preset::Efficient, false)
+                .unwrap(),
+            Some(name)
+        );
+        assert_eq!(
+            lookup
+                .reusable(&cover, dir.path(), "g", Preset::Efficient, true)
+                .unwrap(),
+            None
+        );
+        assert_eq!(fs::read(&path).unwrap(), before);
+    }
+
+    #[test]
     #[ignore = "需指定本机原封面、派生图目录和游戏标识，仅作只读性能测量"]
     fn cached_status_timings() {
         let cover =
@@ -769,7 +874,7 @@ mod tests {
     }
 
     #[test]
-    fn memoized_status_rechecks_corrupt_deleted_and_replaced_files() {
+    fn generation_reuse_rechecks_corrupt_deleted_and_replaced_files() {
         let dir = tempfile::tempdir().unwrap();
         let cover = dir.path().join("original.png");
         fs::write(&cover, b"original").unwrap();
@@ -784,7 +889,7 @@ mod tests {
         for _ in 0..3 {
             assert_eq!(
                 lookup
-                    .status(&cover, dir.path(), "g", Preset::Efficient)
+                    .reusable(&cover, dir.path(), "g", Preset::Efficient, false)
                     .unwrap(),
                 Some(name.clone())
             );
@@ -799,28 +904,28 @@ mod tests {
             .unwrap();
         assert_eq!(
             lookup
-                .status(&cover, dir.path(), "g", Preset::Efficient)
+                .reusable(&cover, dir.path(), "g", Preset::Efficient, false)
                 .unwrap(),
             None
         );
         image::DynamicImage::new_rgb8(12, 8).save(&target).unwrap();
         assert_eq!(
             lookup
-                .status(&cover, dir.path(), "g", Preset::Efficient)
+                .reusable(&cover, dir.path(), "g", Preset::Efficient, false)
                 .unwrap(),
             Some(name)
         );
         fs::remove_file(&target).unwrap();
         assert_eq!(
             lookup
-                .status(&cover, dir.path(), "g", Preset::Efficient)
+                .reusable(&cover, dir.path(), "g", Preset::Efficient, false)
                 .unwrap(),
             None
         );
         fs::write(&cover, b"new original content").unwrap();
         assert_eq!(
             lookup
-                .status(&cover, dir.path(), "g", Preset::Efficient)
+                .reusable(&cover, dir.path(), "g", Preset::Efficient, false)
                 .unwrap(),
             None
         );
@@ -834,7 +939,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             lookup
-                .status(&cover, dir.path(), "g", Preset::Efficient)
+                .reusable(&cover, dir.path(), "g", Preset::Efficient, false)
                 .unwrap(),
             Some(next)
         );
@@ -1245,6 +1350,7 @@ pub fn superres_generate(
     id: String,
     preset: Option<String>,
     task_id: Option<String>,
+    force: Option<bool>,
 ) -> Result<Option<String>, String> {
     let task_id = match task_id {
         Some(id) => uuid::Uuid::parse_str(&id)
@@ -1266,6 +1372,7 @@ pub fn superres_generate(
             game_id: id,
             preset,
             task_id,
+            force: force.unwrap_or(false),
         },
     )
 }

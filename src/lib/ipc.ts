@@ -74,7 +74,7 @@ export const api = {
     invoke<AutofillResult>("autofill", { game, field: field ?? null }),
   superresStatus: (id: string, preset: SuperResPreset = "efficient") => invoke<string | null>("superres_status", { id, preset }),
   superresTask: (id: string) => invoke<SuperResProgress | null>("superres_task", { id }),
-  superresGenerate: (id: string, preset: SuperResPreset = "efficient", taskId?: string) => invoke<string | null>("superres_generate", { id, preset, taskId }),
+  superresGenerate: (id: string, preset: SuperResPreset = "efficient", taskId?: string, force = false) => invoke<string | null>("superres_generate", { id, preset, taskId, force }),
   superresCancel: (id: string, taskId?: string) => invoke<boolean>("superres_cancel", { id, taskId }),
   superresRemove: (id: string) => invoke<void>("superres_remove", { id }),
 };

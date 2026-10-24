@@ -20,7 +20,7 @@ function setup() {
   const off = vi.fn();
   const deps = {
     status: vi.fn<(id: string, preset: SuperResPreset) => Promise<string | null>>().mockResolvedValue(null),
-    generate: vi.fn<(id: string, preset: SuperResPreset, taskId: string) => Promise<string | null>>().mockResolvedValue(null),
+    generate: vi.fn<(id: string, preset: SuperResPreset, taskId: string, force?: boolean) => Promise<string | null>>().mockResolvedValue(null),
     task: vi.fn<() => Promise<SuperResProgress | null>>().mockResolvedValue(null),
     cancel: vi.fn<(id: string, taskId: string) => Promise<boolean>>().mockResolvedValue(true), remove: vi.fn().mockResolvedValue(undefined), notify: vi.fn(),
     invalidate: vi.fn(),
@@ -35,6 +35,37 @@ function setup() {
 }
 
 describe("封面超分", () => {
+  it("增强图加载失败后回退原图，不自动生成，点击才强制重建当前档", async () => {
+    const { store, deps, done } = setup();
+    deps.status.mockImplementation(async (_, preset) => `${preset}.png`);
+    store.getState().connect(); await flush();
+    store.getState().rejectFile("efficient", "efficient.png");
+    expect(coverSuperresSource(store.getState(), "original.png")).toEqual({ kind: "cover", file: "original.png" });
+    expect(store.getState().rejected.efficient).toBe(true);
+    expect(deps.invalidate).toHaveBeenCalledWith("efficient.png");
+    expect(deps.notify).toHaveBeenCalledWith("error", expect.stringContaining("加载失败"));
+    expect(deps.generate).not.toHaveBeenCalled();
+    await store.getState().start();
+    expect(deps.generate).toHaveBeenCalledExactlyOnceWith("g", "efficient", expect.any(String), true);
+    done({ gameId: "g", taskId: store.getState().task!.taskId, preset: "efficient", file: "efficient.png", elapsedMs: 200 });
+    await flush();
+    expect(store.getState().rejected.efficient).toBe(false);
+    expect(coverSuperresSource(store.getState(), "original.png")).toEqual({ kind: "superres", file: "efficient.png" });
+  });
+
+  it("加载失败仅标记对应档位，旧文件或卸载后的失败不能破坏当前缓存", async () => {
+    const { store, deps } = setup();
+    deps.status.mockImplementation(async (_, preset) => `${preset}.png`);
+    const disconnect = store.getState().connect(); await flush();
+    store.getState().select("quality"); await flush();
+    store.getState().rejectFile("quality", "old.png");
+    expect(deps.notify).not.toHaveBeenCalled();
+    store.getState().rejectFile("quality", "quality.png");
+    expect(store.getState().files).toEqual({ efficient: "efficient.png", quality: null });
+    disconnect(); store.getState().rejectFile("efficient", "efficient.png");
+    expect(store.getState().files.efficient).toBe("efficient.png");
+  });
+
   it("恢复所选质量档时只查询质量，不等待或读取效率档", async () => {
     const { deps } = setup();
     const blocked = deferred<string | null>();

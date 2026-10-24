@@ -110,9 +110,12 @@ export const GameDetail = memo(function GameDetail({ game, coverEditor }: { game
   useEffect(() => () => artwork.getState().dispose(), [artwork]);
   // 先保留已显示的图像及其取景；只对选定资源解码，成功后一起替换。
   useLayoutEffect(() => {
-    artwork.getState().update(scope, !game.coverFile ? null : coverSource ?? undefined, framing);
+    artwork.getState().update(scope, !game.coverFile ? null : coverSource ?? undefined, framing, () => {
+      if (coverSource?.kind === "superres") enhanceStore.getState().rejectFile(enhancement.preset, coverSource.file);
+      else showToast("error", "封面加载失败，请重新选择封面或切换游戏后重试");
+    });
   }, [artwork, scope, game.coverFile, coverSource?.kind, coverSource?.file,
-    framing.file, framing.positionX, framing.positionY, framing.zoom]);
+    framing.file, framing.positionX, framing.positionY, framing.zoom, enhanceStore, enhancement.preset, showToast]);
 
   return (
     <div className="game-detail relative flex h-full flex-col overflow-hidden">

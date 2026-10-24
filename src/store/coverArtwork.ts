@@ -10,7 +10,7 @@ type Source = { kind: "cover" | "superres"; file: string };
 type Frame = { scope: string; url: string; framing: CoverFraming };
 interface State {
   frame: Frame | null;
-  update: (scope: string, source: Source | null | undefined, framing: CoverFraming) => void;
+  update: (scope: string, source: Source | null | undefined, framing: CoverFraming, onFailure?: () => void) => void;
   dispose: () => void;
 }
 
@@ -21,7 +21,7 @@ export function createCoverArtwork(load: typeof loadAssetUrl = loadAssetUrl) {
   let latestFraming: CoverFraming;
   return createStore<State>((set, get) => ({
     frame: null,
-    update: (scope, source, framing) => {
+    update: (scope, source, framing, onFailure) => {
       latestFraming = framing;
       const nextKey = JSON.stringify([scope, source === undefined ? "pending" : source]);
       if (key === nextKey) {
@@ -35,7 +35,10 @@ export function createCoverArtwork(load: typeof loadAssetUrl = loadAssetUrl) {
       if (source === null) { set({ frame: null }); return; }
       void load(source.kind, source.file).then((url) => {
         if (request !== revision) return;
+        // 增强图失败的恢复流程会继续加载原图，恢复期间仍保留当前画面。
+        if (!url && source.kind === "superres" && onFailure) { onFailure(); return; }
         set({ frame: url ? { scope, url, framing: latestFraming } : null });
+        if (!url) onFailure?.();
       });
     },
     // StrictMode 可重新进入同一目标；卸载只使异步结果失效，不修改已显示图像。

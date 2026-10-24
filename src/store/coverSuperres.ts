@@ -12,7 +12,7 @@ type Off = () => void;
 interface Dependencies {
   status: (id: string, preset: SuperResPreset) => Promise<string | null>;
   task: (id: string) => Promise<SuperResProgress | null>;
-  generate: (id: string, preset: SuperResPreset, taskId: string) => Promise<string | null>;
+  generate: (id: string, preset: SuperResPreset, taskId: string, force?: boolean) => Promise<string | null>;
   cancel: (id: string, taskId: string) => Promise<boolean>;
   remove: (id: string) => Promise<void>;
   progress: (cb: (p: SuperResProgress) => void) => Promise<Off>;
@@ -30,12 +30,14 @@ interface State {
   filesReady: boolean;
   checked: Record<SuperResPreset, boolean>;
   imageRevision: Record<SuperResPreset, number>;
+  rejected: Record<SuperResPreset, boolean>;
   pending: boolean;
   cancelling: boolean;
   showEnhanced: boolean;
   connect: () => Off;
   select: (preset: SuperResPreset) => void;
   toggle: () => void;
+  rejectFile: (preset: SuperResPreset, file: string) => void;
   start: () => Promise<void>;
   cancel: () => Promise<void>;
   remove: () => Promise<void>;
@@ -70,13 +72,13 @@ export function createCoverSuperres(gameId: string, deps: Dependencies, preferen
     // 无偏好时仅在效率缺失后探测质量，避免中间误判成原图；显式选择只等待自身。
     const refreshDisplay = () => {
       const s = get();
-      const needsFallback = !hasChoice && !s.task && s.preset === "efficient"
+      const needsFallback = !hasChoice && !s.rejected.efficient && !s.task && s.preset === "efficient"
         && s.checked.efficient && !s.files.efficient && !s.checked.quality;
       set({ filesReady: s.checked[s.preset] && !needsFallback });
     };
     const resolveDisplay = async (lifetime: number): Promise<void> => {
       if (!current(lifetime)) return;
-      if (!hasChoice && !get().task && get().preset === "efficient" && get().checked.efficient && !get().files.efficient) {
+      if (!hasChoice && !get().rejected.efficient && !get().task && get().preset === "efficient" && get().checked.efficient && !get().files.efficient) {
         if (!get().checked.quality) {
           refreshDisplay();
           await ensurePreset("quality", lifetime);
@@ -102,6 +104,7 @@ export function createCoverSuperres(gameId: string, deps: Dependencies, preferen
       preset: choice?.preset ?? "efficient", files: { efficient: null, quality: null }, filesReady: false,
       checked: { efficient: false, quality: false },
       imageRevision: { efficient: 0, quality: 0 },
+      rejected: { efficient: false, quality: false },
       task: null, ready: false, pending: false, cancelling: false, showEnhanced: choice?.showEnhanced ?? true,
       connect: () => {
         const lifetime = ++scope;
@@ -150,7 +153,7 @@ export function createCoverSuperres(gameId: string, deps: Dependencies, preferen
                 return;
               }
               deps.invalidate?.(file);
-              set((s) => ({ files: { ...s.files, [p.preset]: file }, checked: { ...s.checked, [p.preset]: true }, imageRevision: { ...s.imageRevision, [p.preset]: s.imageRevision[p.preset] + 1 }, ...(s.preset === p.preset ? { showEnhanced: true } : {}) }));
+              set((s) => ({ files: { ...s.files, [p.preset]: file }, rejected: { ...s.rejected, [p.preset]: false }, checked: { ...s.checked, [p.preset]: true }, imageRevision: { ...s.imageRevision, [p.preset]: s.imageRevision[p.preset] + 1 }, ...(s.preset === p.preset ? { showEnhanced: true } : {}) }));
               if (get().preset === p.preset) remember(get());
               void resolveDisplay(lifetime);
               deps.notify("success", `${presetLabel(p.preset)}档封面已增强（${(p.elapsedMs / 1000).toFixed(1)} 秒）`);
@@ -192,6 +195,15 @@ export function createCoverSuperres(gameId: string, deps: Dependencies, preferen
         if (subscribed) void ensurePreset(preset, scope);
       },
       toggle: () => { set((s) => ({ showEnhanced: !s.showEnhanced })); remember(get()); },
+      // 仅接纳仍属于该档位的文件，避免迟到失败信号破坏已替换的结果。
+      rejectFile: (preset, file) => {
+        if (!connected || get().files[preset] !== file) return;
+        fileRevision[preset] += 1;
+        deps.invalidate?.(file);
+        set(s => ({ files: { ...s.files, [preset]: null }, rejected: { ...s.rejected, [preset]: true }, checked: { ...s.checked, [preset]: true } }));
+        refreshDisplay();
+        deps.notify("error", `${presetLabel(preset)}档增强图加载失败，已回退原图，可点击魔棒重新生成`);
+      },
       start: async () => {
         if (!connected || !get().ready || !get().filesReady || get().task || get().pending) return;
         const lifetime = scope;
@@ -203,12 +215,12 @@ export function createCoverSuperres(gameId: string, deps: Dependencies, preferen
         // 调用前占位，防止双击以及命令响应前就到达的进度事件覆盖状态。
         set({ pending: true, task: { taskId, preset, stage: "processing", elapsedMs: 0 } });
         try {
-          const file = await deps.generate(gameId, preset, taskId);
+          const file = await (get().rejected[preset] ? deps.generate(gameId, preset, taskId, true) : deps.generate(gameId, preset, taskId));
           if (!owns()) return;
           if (file) {
             retired.add(taskId);
             fileRevision[preset] += 1;
-            set((s) => ({ files: { ...s.files, [preset]: file }, checked: { ...s.checked, [preset]: true }, task: null, pending: false, showEnhanced: true }));
+            set((s) => ({ files: { ...s.files, [preset]: file }, rejected: { ...s.rejected, [preset]: false }, checked: { ...s.checked, [preset]: true }, task: null, pending: false, showEnhanced: true }));
             refreshDisplay();
             remember(get());
             deps.notify("info", "已复用现有的增强封面");
@@ -259,7 +271,7 @@ export function createCoverSuperres(gameId: string, deps: Dependencies, preferen
           await deps.remove(gameId);
           if (!current(lifetime) || request !== action) return;
           deps.invalidate?.();
-          set({ files: { efficient: null, quality: null }, checked: { efficient: true, quality: true }, filesReady: true, showEnhanced: true });
+          set({ files: { efficient: null, quality: null }, rejected: { efficient: false, quality: false }, checked: { efficient: true, quality: true }, filesReady: true, showEnhanced: true });
           deps.notify("info", "已删除所有增强封面，恢复原图");
         } catch (error) { if (current(lifetime) && request === action) deps.notify("error", String(error)); }
         finally { if (current(lifetime) && request === action) set({ pending: false }); }

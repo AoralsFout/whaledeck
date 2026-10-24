@@ -22,6 +22,35 @@ function setup() {
 }
 
 describe("展示页封面替换", () => {
+  it("增强图失败交给当前请求恢复，原图加载完前保持旧图", async () => {
+    const { store, load } = setup();
+    store.getState().update("a", source, framing); await flush();
+    const previous = store.getState().frame;
+    const onFailure = vi.fn(); load.mockResolvedValueOnce(null);
+    store.getState().update("b", { ...source, file: "bad.png" }, nextFraming, onFailure); await flush();
+    expect(onFailure).toHaveBeenCalledOnce();
+    expect(store.getState().frame).toBe(previous);
+    const original = deferred(); load.mockReturnValueOnce(original.promise);
+    store.getState().update("b", { kind: "cover", file: "b.png" }, nextFraming, onFailure);
+    expect(store.getState().frame).toBe(previous);
+    original.resolve("asset:original"); await flush();
+    expect(store.getState().frame?.url).toBe("asset:original");
+  });
+
+  it("迟到失败不报告；当前原图也失败时清理上一游戏图像", async () => {
+    const { store, load } = setup();
+    store.getState().update("a", source, framing); await flush();
+    const old = deferred(); const staleFailure = vi.fn();
+    load.mockReturnValueOnce(old.promise);
+    store.getState().update("b", { ...source, file: "bad.png" }, nextFraming, staleFailure);
+    const currentFailure = vi.fn(); load.mockResolvedValueOnce(null);
+    store.getState().update("c", { kind: "cover", file: "c.png" }, nextFraming, currentFailure); await flush();
+    old.resolve(null); await flush();
+    expect(staleFailure).not.toHaveBeenCalled();
+    expect(currentFailure).toHaveBeenCalledOnce();
+    expect(store.getState().frame).toBeNull();
+  });
+
   it("缓存待定和新图解码期间保持旧图及取景，解码完成后一起替换", async () => {
     const { store, load } = setup();
     store.getState().update("a", source, framing); await flush();
