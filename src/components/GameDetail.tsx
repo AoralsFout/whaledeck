@@ -32,7 +32,7 @@ import {
   formatTimer,
   shortPath,
 } from "../lib/format";
-import { coverFraming, coverFramingStyle } from "../lib/coverFraming";
+import { coverFraming } from "../lib/coverFraming";
 import { invalidateAssetUrls } from "../lib/assets";
 import {
   api,
@@ -50,6 +50,8 @@ import type { CoverQuickEditor } from "../store/coverQuickEdit";
 import { isProcessTarget, type Game } from "../types";
 import { ActionTooltips } from "./ActionTooltips";
 import { GameIcon } from "./GameIcon";
+import { DetailBackground } from "./DetailBackground";
+import { TextTransitionProvider, TransitionText } from "./TransitionText";
 
 const PANEL_BG = "rgba(10, 16, 30, 0.38)";
 const PANEL_STYLE = {
@@ -67,7 +69,7 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
         <p className="m-0 text-[11px]" style={{ color: "#a8b8d2" }}>
           {label}
         </p>
-        <p className="m-0 mt-0.5 text-[13px] break-words text-white">{value}</p>
+        <p className="m-0 mt-0.5 text-[13px] break-words text-white"><TransitionText text={value} /></p>
       </div>
     </div>
   );
@@ -79,7 +81,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <span className="shrink-0" style={{ color: "rgba(160, 180, 210, .9)" }}>
         {label}
       </span>
-      <div className="min-w-0 text-right text-white">{children}</div>
+      <div className="min-w-0 text-right text-white">{typeof children === "string" ? <TransitionText text={children} /> : children}</div>
     </div>
   );
 }
@@ -90,6 +92,8 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
  * 运行计时只做展示，真正结算在 Rust 监控线程；备份状态由独立 store 管理。
  */
 export const GameDetail = memo(function GameDetail({ game, coverEditor }: { game: Game; coverEditor: CoverQuickEditor }) {
+  const backgroundTransition = useLibrary(s => s.settings?.theme.detailBackgroundTransition ?? "blur");
+  const textTransition = useLibrary(s => s.settings?.theme.detailTextTransition ?? "fade");
   const framingDraft = useStore(coverEditor, state => state.draft);
   const showToast = useLibrary((s) => s.showToast);
   const enhanceStore = useMemo(() => createCoverSuperres(game.id, {
@@ -115,18 +119,15 @@ export const GameDetail = memo(function GameDetail({ game, coverEditor }: { game
     });
   }, [artwork, scope, game.coverFile, coverSource?.kind, coverSource?.file,
     framing.file, framing.positionX, framing.positionY, framing.zoom, enhanceStore, enhancement.preset, showToast]);
+  // scope 的首项是游戏 id；等待解码时仍按旧图身份展示，不能提前标成新游戏触发动画。
+  const artworkGameId = frame ? (JSON.parse(frame.scope) as string[])[0] : game.id;
 
   return (
     <div className="game-detail relative flex h-full flex-col overflow-hidden">
-      <div className="absolute inset-0">
-        {frame ? (
-          <img src={frame.url} alt="" className="game-cover-art h-full w-full object-cover" data-cover-current={frame.scope === scope} style={coverFramingStyle(frame.framing)} draggable={false} />
-        ) : (
-          <div className="h-full w-full" style={{ background: "linear-gradient(135deg, rgba(var(--primary-rgb), .22), rgba(var(--accent-rgb), .14) 50%, var(--hero-bg))" }} />
-        )}
-        <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(5,9,18,.06) 0%, rgba(5,9,18,.2) 36%, rgba(5,9,18,.58) 64%, rgba(8,13,26,.88) 84%, var(--hero-bg) 100%)" }} />
-      </div>
-      <GameDetailContent key={game.id} game={game} enhanceStore={enhanceStore} />
+      <DetailBackground frame={frame} identity={artworkGameId} scope={scope} mode={backgroundTransition} />
+      <TextTransitionProvider mode={textTransition}>
+        <GameDetailContent key={game.id} game={game} enhanceStore={enhanceStore} />
+      </TextTransitionProvider>
     </div>
   );
 });
@@ -237,7 +238,7 @@ function GameDetailContent({ game, enhanceStore }: { game: Game; enhanceStore: R
               title={game.title}
               style={{ textShadow: "0 2px 24px rgba(0,0,0,.65)" }}
             >
-              {game.title}
+              <TransitionText text={game.title} />
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <span
@@ -248,7 +249,7 @@ function GameDetailContent({ game, enhanceStore }: { game: Game; enhanceStore: R
                   color: "#e3ecff",
                 }}
               >
-                {game.category || "未分类"}
+                <TransitionText text={game.category || "未分类"} />
               </span>
               {game.tags.map((tag) => (
                 <span
@@ -260,7 +261,7 @@ function GameDetailContent({ game, enhanceStore }: { game: Game; enhanceStore: R
                     color: "#c9d8f7",
                   }}
                 >
-                  {tag}
+                  <TransitionText text={tag} />
                 </span>
               ))}
             </div>
@@ -284,7 +285,7 @@ function GameDetailContent({ game, enhanceStore }: { game: Game; enhanceStore: R
                   <p className="m-0 mb-1.5 text-[11px] font-medium" style={{ color: "rgba(160,180,210,.9)" }}>
                     简介
                   </p>
-                  <p className="m-0 line-clamp-6 whitespace-pre-wrap text-white/90">{game.summary}</p>
+                  <p className="m-0 line-clamp-6 whitespace-pre-wrap text-white/90"><TransitionText text={game.summary} /></p>
                 </section>
               )}
 
@@ -381,7 +382,7 @@ function GameDetailContent({ game, enhanceStore }: { game: Game; enhanceStore: R
                   <p className="m-0 mb-1.5 text-[11px] font-medium" style={{ color: "rgba(160,180,210,.9)" }}>
                     备注
                   </p>
-                  <p className="m-0 whitespace-pre-wrap text-white/90">{game.note}</p>
+                  <p className="m-0 whitespace-pre-wrap text-white/90"><TransitionText text={game.note} /></p>
                 </section>
               )}
             </div>

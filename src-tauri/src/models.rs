@@ -89,6 +89,36 @@ pub struct Theme {
     pub sidebar_transparency: f32,
     #[serde(default)]
     pub sidebar_background_fit: SidebarBackgroundFit,
+    #[serde(default)]
+    pub detail_background_transition: DetailBackgroundTransition,
+    #[serde(default)]
+    pub detail_text_transition: DetailTextTransition,
+}
+
+/// 未知动效回退默认方案，防止未来版本的偏好导致整份设置失效。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum DetailBackgroundTransition {
+    None,
+    Crossfade,
+    SlideRight,
+    SlideLeft,
+    SlideDown,
+    SlideUp,
+    #[default]
+    #[serde(other)]
+    Blur,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum DetailTextTransition {
+    None,
+    Stagger,
+    Scramble,
+    #[default]
+    #[serde(other)]
+    Fade,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -144,6 +174,8 @@ impl Default for Theme {
             sidebar_background_file: None,
             sidebar_transparency: default_sidebar_transparency(),
             sidebar_background_fit: SidebarBackgroundFit::default(),
+            detail_background_transition: DetailBackgroundTransition::default(),
+            detail_text_transition: DetailTextTransition::default(),
         }
     }
 }
@@ -279,4 +311,62 @@ pub fn now_ms() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn transition_preferences_accept_legacy_unknown_and_every_choice() {
+        let mut legacy = serde_json::to_value(Settings::default()).unwrap();
+        legacy["theme"]
+            .as_object_mut()
+            .unwrap()
+            .remove("detailBackgroundTransition");
+        legacy["theme"]
+            .as_object_mut()
+            .unwrap()
+            .remove("detailTextTransition");
+        legacy["categories"] = serde_json::json!(["保留分类"]);
+        let restored: Settings = serde_json::from_value(legacy.clone()).unwrap();
+        assert_eq!(
+            restored.theme.detail_background_transition,
+            DetailBackgroundTransition::Blur
+        );
+        assert_eq!(
+            restored.theme.detail_text_transition,
+            DetailTextTransition::Fade
+        );
+        for background in [
+            "none",
+            "blur",
+            "crossfade",
+            "slideRight",
+            "slideLeft",
+            "slideDown",
+            "slideUp",
+        ] {
+            for text in ["none", "fade", "stagger", "scramble"] {
+                legacy["theme"]["detailBackgroundTransition"] = serde_json::json!(background);
+                legacy["theme"]["detailTextTransition"] = serde_json::json!(text);
+                let restored: Settings = serde_json::from_value(legacy.clone()).unwrap();
+                let saved = serde_json::to_value(restored).unwrap();
+                assert_eq!(saved["theme"]["detailBackgroundTransition"], background);
+                assert_eq!(saved["theme"]["detailTextTransition"], text);
+            }
+        }
+        legacy["theme"]["detailBackgroundTransition"] = serde_json::json!("futureBackground");
+        legacy["theme"]["detailTextTransition"] = serde_json::json!("futureText");
+        let restored: Settings = serde_json::from_value(legacy).unwrap();
+        assert_eq!(
+            restored.theme.detail_background_transition,
+            DetailBackgroundTransition::Blur
+        );
+        assert_eq!(
+            restored.theme.detail_text_transition,
+            DetailTextTransition::Fade
+        );
+        assert_eq!(restored.categories, vec!["保留分类"]);
+    }
 }

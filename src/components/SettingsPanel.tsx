@@ -29,6 +29,7 @@ import { Modal } from "./Modal";
 import { Brand } from "./Brand";
 import { SidebarBackgroundSettings } from "./SidebarBackgroundSettings";
 import { CoverFramingSettings } from "./CoverFramingSettings";
+import { DetailTransitionSettings } from "./DetailTransitionSettings";
 
 const TABS = [
   { id: "general", label: "常规", icon: Settings2 },
@@ -330,6 +331,10 @@ export function SettingsPanel() {
                     ))}
                   </div>
                 </div>
+              </Section>
+
+              <Section title="展示页过渡" icon={<Palette size={16} aria-hidden="true" />}>
+                <DetailTransitionSettings theme={theme} onChange={patchTheme} />
               </Section>
 
               <Section title="背景图" icon={<ImagePlus size={16} aria-hidden="true" />}>

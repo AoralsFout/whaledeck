@@ -42,7 +42,7 @@ export function CoverFramingControl({ editor, disabled }: { editor?: CoverQuickE
     };
     const geometry = () => {
       const main = document.getElementById("main-content");
-      const image = main?.querySelector<HTMLImageElement>(".game-cover-art");
+      const image = main?.querySelector<HTMLImageElement>('.game-cover-art[data-cover-current="true"]');
       // 切换时可能暂留上一游戏的图像，不能用它的尺寸调整新封面。
       if (!main || !image?.complete || !image.naturalWidth || image.dataset.coverCurrent === "false") return null;
       return { view: { width: main.clientWidth, height: main.clientHeight },
