@@ -34,6 +34,7 @@ import {
   shortPath,
 } from "../lib/format";
 import { coverFraming, coverFramingStyle } from "../lib/coverFraming";
+import { invalidateAssetUrls } from "../lib/assets";
 import {
   api,
   onSuperResCancelled,
@@ -97,12 +98,13 @@ export const GameDetail = memo(function GameDetail({ game, coverEditor }: { game
     cancel: api.superresCancel, remove: api.superresRemove,
     progress: onSuperResProgress, done: onSuperResDone,
     failed: onSuperResFailed, cancelled: onSuperResCancelled, notify: showToast,
+    invalidate: file => invalidateAssetUrls("superres", file),
   }), [game.id, game.coverFile, showToast]);
   useEffect(() => enhanceStore.getState().connect(), [enhanceStore]);
   const enhancement = useStore(enhanceStore);
   const coverSource = coverSuperresSource(enhancement, game.coverFile);
   const framing = framingDraft ?? coverFraming(game);
-  const scope = JSON.stringify([game.id, game.coverFile]);
+  const scope = JSON.stringify([game.id, game.coverFile, coverSource?.kind === "superres" ? enhancement.imageRevision[enhancement.preset] : 0]);
   const [artwork] = useState(() => createCoverArtwork());
   const frame = useStore(artwork, state => state.frame);
   useEffect(() => () => artwork.getState().dispose(), [artwork]);
@@ -511,7 +513,7 @@ function GameDetailContent({ game, enhanceStore }: { game: Game; enhanceStore: R
             <button
               className="btn btn-icon-glass"
               onClick={() => void enhancement.start()}
-              disabled={enhanceBusy || !game.coverFile}
+              disabled={enhanceBusy || !enhancement.filesReady || !game.coverFile}
               data-tooltip={!game.coverFile ? "请先设置封面" : enhancement.preset === "quality" ? "质量档：细节优先，通常约 8–15 秒，实际依设备与图片而变；本机处理" : "效率档：本机增强封面，通常约 3–6 秒"}
               aria-label="增强封面"
             >

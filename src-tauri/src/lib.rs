@@ -5,6 +5,7 @@
 mod background_fit;
 mod commands;
 mod cover;
+mod file_memo;
 mod launcher;
 mod lifecycle;
 mod meta;
