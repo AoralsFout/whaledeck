@@ -21,7 +21,7 @@ export function CoverFramingControl({ editor, disabled }: { editor?: CoverQuickE
   useEffect(() => {
     const target = button.current;
     if (!target || !editor || disabled) return;
-    let active: { start: CoverFraming; dx: number; dy: number; moved: boolean;
+    let active: { framing: CoverFraming; dx: number; dy: number; moved: boolean;
       view: { width: number; height: number }; image: { width: number; height: number } } | null = null;
     let wheelTimer: ReturnType<typeof setTimeout> | undefined;
     let alive = true;
@@ -52,7 +52,7 @@ export function CoverFramingControl({ editor, disabled }: { editor?: CoverQuickE
       const size = geometry();
       if (!size) return;
       flush();
-      active = { start: editor.value(), dx: 0, dy: 0, moved: false, ...size };
+      active = { framing: editor.value(), dx: 0, dy: 0, moved: false, ...size };
       requesting = true;
       try {
         Promise.resolve(target.requestPointerLock()).catch(() => {
@@ -71,12 +71,18 @@ export function CoverFramingControl({ editor, disabled }: { editor?: CoverQuickE
     };
     const move = (event: MouseEvent) => {
       if (!active || document.pointerLockElement !== target) return;
-      active.dx += event.movementX; active.dy += event.movementY;
-      if (!active.moved && Math.hypot(active.dx, active.dy) < 3) return;
-      active.moved = true;
+      let dx = event.movementX, dy = event.movementY;
+      if (!active.moved) {
+        active.dx += dx; active.dy += dy;
+        if (Math.hypot(active.dx, active.dy) < 3) return;
+        dx = active.dx; dy = active.dy;
+        active.moved = true;
+        setDragging(true);
+      }
       suppressClick.current = true;
-      setDragging(true);
-      editor.preview(dragCoverFraming(active.start, active.dx, active.dy, active.view, active.image));
+      // 以裁切后的实际位置逐步移动，丢弃越界余量，让反向移动立即生效。
+      active.framing = dragCoverFraming(active.framing, dx, dy, active.view, active.image);
+      editor.preview(active.framing);
     };
     const up = (event: MouseEvent) => { if (event.button === 0) finish(true); };
     const cancel = () => finish(false);
