@@ -46,6 +46,7 @@ import {
 import { useLibrary } from "../store/useLibrary";
 import { createCoverSuperres, presetLabel } from "../store/coverSuperres";
 import { createSaveBackups } from "../store/saveBackups";
+import type { CoverQuickEditor } from "../store/coverQuickEdit";
 import { isProcessTarget, type Game } from "../types";
 import { ActionTooltips } from "./ActionTooltips";
 import { GameIcon } from "./GameIcon";
@@ -88,7 +89,8 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
  *
  * 运行计时只做展示，真正结算在 Rust 监控线程；备份状态由独立 store 管理。
  */
-export const GameDetail = memo(function GameDetail({ game }: { game: Game }) {
+export const GameDetail = memo(function GameDetail({ game, coverEditor }: { game: Game; coverEditor: CoverQuickEditor }) {
+  const framingDraft = useStore(coverEditor, state => state.draft);
   const running = useLibrary((s) => s.sessions.find((x) => x.gameId === game.id));
   const openEdit = useLibrary((s) => s.openEdit);
   const openMeta = useLibrary((s) => s.openMeta);
@@ -181,7 +183,7 @@ export const GameDetail = memo(function GameDetail({ game }: { game: Game }) {
       {/* 全幅背景（只用封面，不用图标） */}
       <div className="absolute inset-0">
         {displayCover ? (
-          <img src={displayCover} alt="" className="game-cover-art h-full w-full object-cover" style={coverFramingStyle(coverFraming(game))} draggable={false} />
+          <img src={displayCover} alt="" className="game-cover-art h-full w-full object-cover" style={coverFramingStyle(framingDraft ?? coverFraming(game))} draggable={false} />
         ) : (
           <div
             className="h-full w-full"

@@ -94,19 +94,29 @@ body {
   position: fixed;
   top: 0;
   left: 16px;
-  right: 156px;
+  right: 204px;
   height: 52px;
   z-index: 30;
 }
 
-.window-controls {
+.window-chrome-actions {
   position: fixed;
   top: 12px;
   right: 12px;
   z-index: 60;
   display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.window-controls {
+  display: flex;
   gap: 2px;
   padding: 3px;
+}
+
+.window-controls,
+.window-control.cover-framing-control {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: color-mix(in srgb, var(--surface) 88%, transparent);
@@ -154,6 +164,12 @@ body {
 .window-control:disabled {
   cursor: default;
   opacity: 0.45;
+}
+
+.window-control.cover-framing-control { width: 44px; height: 38px; touch-action: none; }
+.cover-framing-control[data-dragging="true"] {
+  background: color-mix(in srgb, var(--primary) 20%, var(--surface-2));
+  color: var(--primary-ink);
 }
 
 @media (prefers-reduced-motion: reduce) {
