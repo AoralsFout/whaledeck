@@ -588,18 +588,10 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 }
 .detail-content, .detail-footer { padding-inline: var(--space-page); }
 .detail-content { padding-top: 80px; }
+.detail-disclosure:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.detail-icon { position: relative; flex: 0 0 76px; min-height: 76px; }
+.detail-scroll { overflow-x: hidden; overflow-y: hidden; overscroll-behavior: contain; }
 .game-title { overflow-wrap: anywhere; line-height: 1.25; text-wrap: balance; }
-.detail-toggle {
-  background: rgb(8 13 26 / 48%);
-  color: #c8d8ed;
-  border-color: rgb(255 255 255 / 14%);
-  backdrop-filter: blur(12px);
-  font-size: 12px;
-  padding: 6px 10px;
-  min-height: 32px;
-}
-.detail-toggle svg { transition: transform var(--motion-normal) var(--ease-out); }
-.detail-disclosure[data-expanded="true"] .detail-toggle svg { transform: rotate(180deg); }
 .detail-panels {
   visibility: hidden;
   opacity: 0;
@@ -607,14 +599,19 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
   pointer-events: none;
   transition: opacity var(--motion-normal) ease, transform var(--motion-normal) var(--ease-out), visibility var(--motion-normal);
 }
-.detail-disclosure[data-expanded="true"] .detail-panels,
-.detail-panels:focus-within {
+.detail-disclosure:focus-within .detail-panels {
   visibility: visible; opacity: 1; transform: none; pointer-events: auto;
 }
+.detail-disclosure:focus-within .detail-scroll { overflow-y: auto; }
 @media (hover: hover) and (pointer: fine) {
   .detail-disclosure:hover .detail-panels {
     visibility: visible; opacity: 1; transform: none; pointer-events: auto;
   }
+  .detail-disclosure:hover .detail-scroll { overflow-y: auto; }
+}
+@media (hover: none), (pointer: coarse) {
+  .detail-panels { visibility: visible; opacity: 1; transform: none; pointer-events: auto; }
+  .detail-scroll { overflow-y: auto; }
 }
 .detail-panels section { overflow-wrap: anywhere; }
 .detail-footer { padding-bottom: 24px; }
