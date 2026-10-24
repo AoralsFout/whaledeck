@@ -4,6 +4,8 @@
  * 这里是前后端共享形状的唯一前端来源；字段语义见 docs/数据模型.md。
  * 对应文档：docs/数据模型.md「实体」、docs/接口契约.md。
  */
+export type CoverFraming = { file: string; positionX: number; positionY: number; zoom: number };
+
 export type Game = {
   id: string;
   title: string;
@@ -12,6 +14,7 @@ export type Game = {
   args: string;
   extraProcessNames: string[];
   coverFile: string | null;
+  coverFraming?: CoverFraming | null;
   /** 程序图标（列表缩略图用），与封面分开 */
   iconFile: string | null;
   category: string;
@@ -34,6 +37,21 @@ export type Game = {
 
 export type ThemePreset = "whale" | "abyss" | "sakura" | "mono";
 
+export type SidebarBackgroundFit = {
+  enabled: boolean;
+  mode: "contain" | "cover" | "stretch";
+  positionX: number;
+  positionY: number;
+};
+export type BackgroundSource = { sourceKind: "cover" | "background"; file: string };
+export type BackgroundFitRequest = BackgroundSource & Omit<SidebarBackgroundFit, "enabled"> & {
+  width: number; height: number; padding: number;
+};
+export type BackgroundFitResult = {
+  file: string; sourceWidth: number; sourceHeight: number;
+  width: number; height: number; padding: number; cacheHit: boolean;
+};
+
 export type Theme = {
   preset: ThemePreset;
   mode: "dark" | "light" | "system";
@@ -41,6 +59,12 @@ export type Theme = {
   accent: string;
   backgroundFile: string | null;
   backgroundDim: number;
+  sidebarAutoHide: boolean;
+  sidebarGlass: boolean;
+  sidebarClearGlass?: boolean;
+  sidebarBackgroundFile: string | null;
+  sidebarTransparency: number;
+  sidebarBackgroundFit?: SidebarBackgroundFit;
 };
 
 export type SortKey = "recent" | "title" | "playtime" | "added";

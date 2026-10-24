@@ -7,7 +7,8 @@ use crate::launcher;
 use crate::lifecycle::Lifecycle;
 use crate::meta;
 use crate::models::{
-    now_ms, Game, LaunchResult, MetaItem, SaveBackup, ScanEntry, Session, Settings, StoppedPayload,
+    now_ms, CoverFraming, Game, LaunchResult, MetaItem, SaveBackup, ScanEntry, Session, Settings,
+    StoppedPayload,
 };
 use crate::savegame;
 use crate::store::Store;
@@ -102,6 +103,46 @@ fn save_game_record(state: &AppState, mut game: Game) -> Result<Game, String> {
     state.store.save_games(&next)?;
     *games = next;
     Ok(game)
+}
+
+/// 仅保存当前封面的显示取景，不用前端的整条快照覆盖并发更新。
+#[tauri::command]
+pub fn save_cover_framing(
+    state: State<'_, AppState>,
+    id: String,
+    framing: CoverFraming,
+) -> Result<Game, String> {
+    save_cover_framing_record(state.inner(), &id, framing)
+}
+
+fn save_cover_framing_record(
+    state: &AppState,
+    id: &str,
+    framing: CoverFraming,
+) -> Result<Game, String> {
+    if !framing.position_x.is_finite()
+        || !framing.position_y.is_finite()
+        || !framing.zoom.is_finite()
+        || !(0.0..=100.0).contains(&framing.position_x)
+        || !(0.0..=100.0).contains(&framing.position_y)
+        || !(1.0..=3.0).contains(&framing.zoom)
+    {
+        return Err("封面取景参数无效，请重新调整后保存".into());
+    }
+    let mut games = state.games.lock().unwrap();
+    let mut next = games.clone();
+    let game = next
+        .iter_mut()
+        .find(|g| g.id == id)
+        .ok_or("游戏记录不存在")?;
+    if framing.file.is_empty() || game.cover_file.as_deref() != Some(framing.file.as_str()) {
+        return Err("封面已更换，请重新打开取景设置".into());
+    }
+    game.cover_framing = Some(framing);
+    let saved = game.clone();
+    state.store.save_games(&next)?;
+    *games = next;
+    Ok(saved)
 }
 
 /// 删除记录；运行中的游戏必须先退出，避免计时线程写回已删除的记录。
@@ -384,20 +425,51 @@ pub fn import_icon(state: State<'_, AppState>, id: String, src: String) -> Resul
     state.store.import_icon(&id, Path::new(&src))
 }
 
-/// 复制背景图并立即把文件名写回设置，保证重启后仍生效。
-#[tauri::command]
-pub fn import_background(state: State<'_, AppState>, src: String) -> Result<String, String> {
-    let ext = lower_ext(&src);
-    let name = format!("background.{ext}");
+/// 背景用途隔离；先复制到唯一文件，再写设置，最后清理对应用途旧图。
+fn import_background_record(
+    state: &AppState,
+    src: &str,
+    target: Option<&str>,
+) -> Result<String, String> {
+    let prefix = match target.unwrap_or("main") {
+        "main" => "background.",
+        "sidebar" => "sidebar-background.",
+        _ => return Err("未知的背景用途，请重新打开设置".into()),
+    };
+    let ext = lower_ext(src);
+    let name = format!("{prefix}{}.{ext}", uuid::Uuid::new_v4());
     let dir = state.store.backgrounds_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    remove_old_assets(&dir, "background.", None);
-    std::fs::copy(&src, dir.join(&name)).map_err(|e| format!("复制背景失败：{e}"))?;
+    let dest = dir.join(&name);
+    if let Err(e) = std::fs::copy(src, &dest) {
+        let _ = std::fs::remove_file(&dest);
+        return Err(format!("复制背景失败 {}：{e}", dest.display()));
+    }
 
     let mut settings = state.settings.lock().unwrap();
-    settings.theme.background_file = Some(name.clone());
-    state.store.save_settings(&settings)?;
+    let mut next = settings.clone();
+    if target == Some("sidebar") {
+        next.theme.sidebar_background_file = Some(name.clone());
+    } else {
+        next.theme.background_file = Some(name.clone());
+    }
+    if let Err(e) = state.store.save_settings(&next) {
+        let _ = std::fs::remove_file(&dest);
+        return Err(e);
+    }
+    *settings = next;
+    remove_old_assets(&dir, prefix, Some(&name));
     Ok(name)
+}
+
+/// 保存对应背景引用；不传用途时兼容原来的应用背景调用。
+#[tauri::command]
+pub fn import_background(
+    state: State<'_, AppState>,
+    src: String,
+    target: Option<String>,
+) -> Result<String, String> {
+    import_background_record(&state, &src, target.as_deref())
 }
 
 #[tauri::command]
@@ -406,6 +478,7 @@ pub fn asset_path(state: State<'_, AppState>, kind: String, file: String) -> Str
         "background" => state.store.backgrounds_dir(),
         "icon" => state.store.icons_dir(),
         "superres" => state.store.superres_dir(),
+        "backgroundFit" => state.store.root.join("background-fit"),
         _ => state.store.covers_dir(),
     };
     dir.join(file).to_string_lossy().to_string()
@@ -584,22 +657,24 @@ pub async fn apply_meta(
     if let Some(url) = item.cover_url.as_deref() {
         if !url.is_empty() {
             let (bytes, ext) = meta::download_image(url).await?;
-            let name = format!("{game_id}.{ext}");
+            // 每次联网封面采用独立文件，避免相同 URL 缓存与旧取景误用于新图。
+            let name = format!("{game_id}.{}.{ext}", uuid::Uuid::new_v4());
             let dir = state.store.covers_dir();
             std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
             std::fs::write(dir.join(&name), bytes).map_err(|e| format!("保存封面失败：{e}"))?;
-            remove_old_assets(&dir, &format!("{game_id}."), Some(&name));
             cover_file = Some(name);
         }
     }
 
     let mut games = state.games.lock().unwrap();
-    let game = games
+    let mut next = games.clone();
+    let game = next
         .iter_mut()
         .find(|g| g.id == game_id)
         .ok_or_else(|| "游戏记录不存在".to_string())?;
     if let Some(cover) = cover_file {
         game.cover_file = Some(cover);
+        game.cover_framing = None;
     }
     if !item.summary.trim().is_empty() {
         game.summary = item.summary.trim().to_string();
@@ -613,7 +688,8 @@ pub async fn apply_meta(
     game.source = item.source.clone();
     game.source_id = item.id.clone();
     let snapshot = game.clone();
-    state.store.save_games(&games)?;
+    state.store.save_games(&next)?;
+    *games = next;
     Ok(snapshot)
 }
 
@@ -770,6 +846,192 @@ mod game_write_tests {
             lifecycle: Mutex::new(Lifecycle::default()),
             superres: crate::superres::SuperRes::new(),
         }
+    }
+
+    #[test]
+    fn legacy_theme_gets_sidebar_defaults_without_changing_background() {
+        let settings: Settings = serde_json::from_value(serde_json::json!({
+            "theme": {
+                "preset": "whale", "mode": "dark", "primary": "#4fd6e8", "accent": "#ff9ec7",
+                "backgroundFile": "background.jpg", "backgroundDim": 0.7
+            }
+        }))
+        .unwrap();
+        assert_eq!(
+            settings.theme.background_file.as_deref(),
+            Some("background.jpg")
+        );
+        assert!(settings.theme.sidebar_background_file.is_none());
+        assert_eq!(settings.theme.sidebar_transparency, 0.52);
+        assert!(settings.theme.sidebar_auto_hide);
+        assert!(!settings.theme.sidebar_glass);
+        assert!(!settings.theme.sidebar_clear_glass);
+        assert!(!settings.theme.sidebar_background_fit.enabled);
+        assert_eq!(
+            settings.theme.sidebar_background_fit.mode,
+            crate::models::BackgroundFitMode::Contain
+        );
+        assert_eq!(settings.theme.sidebar_background_fit.position_x, 50);
+        assert_eq!(settings.theme.sidebar_background_fit.position_y, 50);
+        let mut changed = settings;
+        changed.theme.sidebar_auto_hide = false;
+        changed.theme.sidebar_glass = true;
+        changed.theme.sidebar_clear_glass = true;
+        changed.theme.sidebar_transparency = 1.0;
+        changed.theme.sidebar_background_file = Some("sidebar-background.png".into());
+        changed.theme.sidebar_background_fit.enabled = true;
+        changed.theme.sidebar_background_fit.mode = crate::models::BackgroundFitMode::Cover;
+        changed.theme.sidebar_background_fit.position_x = 72;
+        let restored: Settings =
+            serde_json::from_slice(&serde_json::to_vec(&changed).unwrap()).unwrap();
+        assert_eq!(restored.theme.sidebar_transparency, 1.0);
+        assert!(!restored.theme.sidebar_auto_hide);
+        assert!(restored.theme.sidebar_glass);
+        assert!(restored.theme.sidebar_clear_glass);
+        assert!(restored.theme.sidebar_background_fit.enabled);
+        assert_eq!(
+            restored.theme.sidebar_background_fit.mode,
+            crate::models::BackgroundFitMode::Cover
+        );
+        assert_eq!(restored.theme.sidebar_background_fit.position_x, 72);
+        assert_eq!(
+            restored.theme.sidebar_background_file,
+            changed.theme.sidebar_background_file
+        );
+    }
+
+    #[test]
+    fn cover_framing_roundtrip_preserves_latest_game_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut current = game("a", "新元数据名称");
+        assert!(current.cover_framing.is_none());
+        current.cover_file = Some("a.jpg".into());
+        current.playtime_sec = 12345;
+        let state = state(dir.path().to_path_buf(), vec![current]);
+        let framing = CoverFraming {
+            file: "a.jpg".into(),
+            position_x: 15.5,
+            position_y: 82.0,
+            zoom: 1.7,
+        };
+        let saved = save_cover_framing_record(&state, "a", framing.clone()).unwrap();
+        assert_eq!(saved.title, "新元数据名称");
+        assert_eq!(saved.playtime_sec, 12345);
+        assert_eq!(saved.cover_framing, Some(framing.clone()));
+        assert_eq!(state.store.load_games()[0].cover_framing, Some(framing));
+    }
+
+    #[test]
+    fn cover_framing_rejects_stale_file_missing_game_and_invalid_values() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut current = game("a", "游戏");
+        current.cover_file = Some("new.jpg".into());
+        let state = state(dir.path().to_path_buf(), vec![current]);
+        let valid = CoverFraming {
+            file: "new.jpg".into(),
+            position_x: 50.0,
+            position_y: 50.0,
+            zoom: 1.0,
+        };
+        assert!(save_cover_framing_record(&state, "missing", valid.clone()).is_err());
+        assert!(save_cover_framing_record(
+            &state,
+            "a",
+            CoverFraming {
+                file: "old.jpg".into(),
+                ..valid.clone()
+            }
+        )
+        .is_err());
+        for (x, y, zoom) in [
+            (f64::NAN, 50.0, 1.0),
+            (50.0, f64::INFINITY, 1.0),
+            (-1.0, 50.0, 1.0),
+            (50.0, 101.0, 1.0),
+            (50.0, 50.0, 0.9),
+            (50.0, 50.0, 3.1),
+        ] {
+            assert!(save_cover_framing_record(
+                &state,
+                "a",
+                CoverFraming {
+                    position_x: x,
+                    position_y: y,
+                    zoom,
+                    ..valid.clone()
+                }
+            )
+            .is_err());
+        }
+        assert!(state.games.lock().unwrap()[0].cover_framing.is_none());
+        assert!(!state.store.games_path().exists());
+    }
+
+    #[test]
+    fn failed_cover_framing_save_preserves_original_memory_and_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut current = game("a", "游戏");
+        current.cover_file = Some("a.jpg".into());
+        let state = state(dir.path().to_path_buf(), vec![current]);
+        state
+            .store
+            .save_games(&state.games.lock().unwrap())
+            .unwrap();
+        std::fs::create_dir(state.store.games_path().with_extension("json.tmp")).unwrap();
+        assert!(save_cover_framing_record(
+            &state,
+            "a",
+            CoverFraming {
+                file: "a.jpg".into(),
+                position_x: 0.0,
+                position_y: 100.0,
+                zoom: 3.0
+            }
+        )
+        .is_err());
+        assert!(state.games.lock().unwrap()[0].cover_framing.is_none());
+        assert!(state.store.load_games()[0].cover_framing.is_none());
+    }
+
+    #[test]
+    fn background_targets_are_independent_and_failures_preserve_saved_images() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = state(temp.path().join("library"), vec![]);
+        state.store.ensure_dirs().unwrap();
+        let src = temp.path().join("image.png");
+        std::fs::write(&src, b"image contents").unwrap();
+        let src = src.to_str().unwrap();
+        let main = import_background_record(&state, src, None).unwrap();
+        let sidebar = import_background_record(&state, src, Some("sidebar")).unwrap();
+        let dir = state.store.backgrounds_dir();
+        assert!(dir.join(&main).is_file());
+        assert!(dir.join(&sidebar).is_file());
+        let replacement = import_background_record(&state, src, Some("sidebar")).unwrap();
+        assert_ne!(replacement, sidebar);
+        assert!(!dir.join(&sidebar).exists());
+        assert!(dir.join(&main).is_file());
+        let saved = state.store.load_settings();
+        assert_eq!(saved.theme.background_file.as_deref(), Some(main.as_str()));
+        assert_eq!(
+            saved.theme.sidebar_background_file.as_deref(),
+            Some(replacement.as_str())
+        );
+        assert!(import_background_record(&state, "missing.png", Some("sidebar")).is_err());
+        assert!(import_background_record(&state, src, Some("invalid")).is_err());
+
+        let blocked = state.store.settings_path().with_extension("json.tmp");
+        std::fs::create_dir(&blocked).unwrap();
+        assert!(import_background_record(&state, src, Some("main")).is_err());
+        assert!(import_background_record(&state, src, Some("sidebar")).is_err());
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
+        assert!(dir.join(&main).is_file());
+        assert!(dir.join(&replacement).is_file());
+        let memory = state.settings.lock().unwrap();
+        assert_eq!(memory.theme.background_file, saved.theme.background_file);
+        assert_eq!(
+            memory.theme.sidebar_background_file,
+            saved.theme.sidebar_background_file
+        );
     }
 
     #[test]

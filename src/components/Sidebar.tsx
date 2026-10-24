@@ -7,6 +7,10 @@
 import { ArrowDownWideNarrow, ArrowLeft, FolderSearch, Plus, Search, Settings, Star, X } from "lucide-react";
 import { formatPlaytime, formatRelative } from "../lib/format";
 import { collectCategories } from "../lib/library";
+import { useAssetUrl } from "../lib/useAssetUrl";
+import { DEFAULT_BACKGROUND_FIT, sidebarBackgroundSource } from "../lib/backgroundFit";
+import { useSidebarBackgroundFit } from "../lib/useSidebarBackgroundFit";
+import { memo, useMemo, type CSSProperties } from "react";
 import { Brand } from "./Brand";
 import { GameIcon } from "./GameIcon";
 import { useLibrary } from "../store/useLibrary";
@@ -34,25 +38,75 @@ function Thumb({ game }: { game: Game }) {
   );
 }
 
-/** 侧栏；窄屏点击列表项后由 onNavigate 关闭覆盖层。 */
-export function Sidebar({ onNavigate }: { onNavigate: () => void }) {
+/** 外观变化由 CSS 呈现；记录与状态未变时保留已渲染的列表项和图片。 */
+const LibraryItem = memo(function LibraryItem({ game, active, running, onNavigate }: {
+  game: Game; active: boolean; running: boolean; onNavigate: () => void;
+}) {
+  return (
+    <button
+      onClick={() => { useLibrary.getState().select(game.id); onNavigate(); }}
+      onDoubleClick={() => void useLibrary.getState().launchGame(game.id)}
+      className="library-item mb-1 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left"
+      aria-current={active ? "true" : undefined}
+      title={`${game.title}\n${game.exePath}\n双击启动`}
+    >
+      <Thumb game={game} />
+      <div className="min-w-0 flex-1">
+        <p className="m-0 truncate text-[13px] font-medium">{game.title}</p>
+        <p className="m-0 mt-0.5 truncate text-[11px]" style={{ color: "var(--text-dim)" }}>
+          {formatRelative(game.lastPlayedAt)} · {formatPlaytime(game.playtimeSec)}
+        </p>
+      </div>
+      {running && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#7ee7c8]" title="运行中" aria-label="运行中" />}
+      {game.favorite && <Star size={11} className="shrink-0" style={{ color: "#ffd166" }} fill="currentColor" />}
+    </button>
+  );
+});
+
+/** 列表独立订阅选中与会话，避免调整主题或打开弹窗时遍历整份游戏库。 */
+const LibraryList = memo(function LibraryList({ games, emptyLibrary, onNavigate }: {
+  games: Game[]; emptyLibrary: boolean; onNavigate: () => void;
+}) {
+  const selectedId = useLibrary((s) => s.selectedId);
+  const sessions = useLibrary((s) => s.sessions);
+  const runningIds = useMemo(() => new Set(sessions.map((session) => session.gameId)), [sessions]);
+  return (
+    <div className="mt-2 min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+      {games.length === 0 && (
+        <p className="px-3 py-6 text-center text-[11px]" style={{ color: "var(--text-dim)" }}>
+          {emptyLibrary ? "还没有游戏，点右上角 + 添加" : "没有匹配的游戏"}
+        </p>
+      )}
+      {games.map((game) => <LibraryItem key={game.id} game={game} active={game.id === selectedId} running={runningIds.has(game.id)} onNavigate={onNavigate} />)}
+    </div>
+  );
+});
+
+/** 侧栏；窄屏点击列表项后由 onNavigate 关闭覆盖层，弹窗开关不重渲染导航内容。 */
+export const Sidebar = memo(function Sidebar({ onNavigate }: { onNavigate: () => void }) {
   const games = useLibrary((s) => s.games);
   const settings = useLibrary((s) => s.settings);
+  const { visible, selected } = useLibraryView();
+  const clearGlass = settings?.theme.sidebarClearGlass ?? false;
+  const glass = Boolean(settings?.theme.sidebarGlass && !clearGlass);
+  const useCoverBackground = glass || clearGlass;
+  const customBackground = useAssetUrl("background", settings?.theme.sidebarBackgroundFile);
+  const coverBackground = useAssetUrl("cover", useCoverBackground && !settings?.theme.sidebarBackgroundFile ? selected?.coverFile : null);
+  const background = customBackground ?? coverBackground;
+  const fitSource = settings ? sidebarBackgroundSource(settings.theme, selected?.coverFile) : null;
+  const fitted = useSidebarBackgroundFit(fitSource, settings?.theme.sidebarBackgroundFit ?? DEFAULT_BACKGROUND_FIT, glass);
+  const displayedBackground = fitted.image?.url ?? background;
   const nav = useLibrary((s) => s.nav);
   const setNav = useLibrary((s) => s.setNav);
   const query = useLibrary((s) => s.query);
   const setQuery = useLibrary((s) => s.setQuery);
   const sort = useLibrary((s) => s.sort);
   const setSort = useLibrary((s) => s.setSort);
-  const selectedId = useLibrary((s) => s.selectedId);
-  const select = useLibrary((s) => s.select);
   const openNew = useLibrary((s) => s.openNew);
   const openScan = useLibrary((s) => s.openScan);
   const openSettings = useLibrary((s) => s.openSettings);
-  const sessions = useLibrary((s) => s.sessions);
 
   const categories = collectCategories(games, settings?.categories ?? []);
-  const { visible } = useLibraryView();
 
   const isActive = (key: NavKey) => {
     if (key.type !== nav.type) return false;
@@ -72,11 +126,16 @@ export function Sidebar({ onNavigate }: { onNavigate: () => void }) {
       id="library-sidebar"
       aria-label="游戏库"
       className="library-sidebar flex shrink-0 flex-col border-r"
+      data-has-background={Boolean(displayedBackground)}
+      data-background-fitted={Boolean(fitted.image)}
+      data-glass={glass}
+      data-clear-glass={clearGlass}
       style={{
         borderColor: "var(--border)",
-        background: "color-mix(in srgb, var(--surface) 48%, transparent)",
-        backdropFilter: "blur(24px) saturate(1.15)",
-      }}
+        "--sidebar-image": displayedBackground ? `url(${JSON.stringify(displayedBackground)})` : "none",
+        "--sidebar-fit-padding-x": `${fitted.image ? fitted.image.padding / fitted.image.width * 100 : 0}%`,
+        "--sidebar-fit-padding-y": `${fitted.image ? fitted.image.padding / fitted.image.height * 100 : 0}%`,
+      } as CSSProperties}
     >
       <div className="sidebar-brand flex items-center gap-2.5 px-4 pb-4 pt-4" data-tauri-drag-region>
         <Brand />
@@ -136,7 +195,7 @@ export function Sidebar({ onNavigate }: { onNavigate: () => void }) {
               <button
                 key={chip.type + ("name" in chip ? chip.name : "")}
                 onClick={() => setNav(chip)}
-                className="filter-chip rounded-full px-2.5 py-1 text-[12px] transition-colors"
+                className="filter-chip rounded-full px-2.5 py-1 text-[12px]"
                 aria-pressed={active}
                 style={{
                   background: active ? "rgba(var(--primary-rgb), .16)" : "var(--surface-2)",
@@ -180,47 +239,7 @@ export function Sidebar({ onNavigate }: { onNavigate: () => void }) {
         </div>
       </div>
 
-      <div className="mt-2 min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-        {visible.length === 0 && (
-          <p className="px-3 py-6 text-center text-[11px]" style={{ color: "var(--text-dim)" }}>
-            {games.length === 0 ? "还没有游戏，点右上角 + 添加" : "没有匹配的游戏"}
-          </p>
-        )}
-        {visible.map((game) => {
-          const active = game.id === selectedId;
-          const running = sessions.some((s) => s.gameId === game.id);
-          return (
-            <button
-              key={game.id}
-              onClick={() => { select(game.id); onNavigate(); }}
-              onDoubleClick={() => void useLibrary.getState().launchGame(game.id)}
-              className="library-item mb-1 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors"
-              aria-current={active ? "true" : undefined}
-              style={{
-                background: active ? "rgba(var(--primary-rgb), .13)" : "transparent",
-                border: `1px solid ${active ? "rgba(var(--primary-rgb), .3)" : "transparent"}`,
-              }}
-              title={`${game.title}\n${game.exePath}\n双击启动`}
-            >
-              <Thumb game={game} />
-              <div className="min-w-0 flex-1">
-                <p className="m-0 truncate text-[13px] font-medium">
-                  {game.title}
-                </p>
-                <p className="m-0 mt-0.5 truncate text-[11px]" style={{ color: "var(--text-dim)" }}>
-                  {formatRelative(game.lastPlayedAt)} · {formatPlaytime(game.playtimeSec)}
-                </p>
-              </div>
-              {running && (
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#7ee7c8]" title="运行中" aria-label="运行中" />
-              )}
-              {game.favorite && (
-                <Star size={11} className="shrink-0" style={{ color: "#ffd166" }} fill="currentColor" />
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <LibraryList games={visible} emptyLibrary={games.length === 0} onNavigate={onNavigate} />
 
       <div
         className="flex items-center justify-between border-t px-4 py-2.5"
@@ -239,4 +258,4 @@ export function Sidebar({ onNavigate }: { onNavigate: () => void }) {
       </div>
     </aside>
   );
-}
+});

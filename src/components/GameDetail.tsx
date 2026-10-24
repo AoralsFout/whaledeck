@@ -4,7 +4,7 @@
  * 由 App 以游戏 id 作为 key 挂载，切换游戏即重置本地计时/备份/确认状态。
  * 对应文档：docs/界面与交互.md §2.2、docs/前端实现.md §3.1。
  */
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { useStore } from "zustand";
 import {
   Archive,
@@ -35,6 +35,7 @@ import {
   shortPath,
 } from "../lib/format";
 import { useAssetUrl } from "../lib/useAssetUrl";
+import { coverFraming, coverFramingStyle } from "../lib/coverFraming";
 import {
   api,
   onSuperResCancelled,
@@ -88,7 +89,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
  *
  * 运行计时只做展示，真正结算在 Rust 监控线程；备份状态由独立 store 管理。
  */
-export function GameDetail({ game }: { game: Game }) {
+export const GameDetail = memo(function GameDetail({ game }: { game: Game }) {
   const running = useLibrary((s) => s.sessions.find((x) => x.gameId === game.id));
   const openEdit = useLibrary((s) => s.openEdit);
   const openMeta = useLibrary((s) => s.openMeta);
@@ -172,7 +173,7 @@ export function GameDetail({ game }: { game: Game }) {
       {/* 全幅背景（只用封面，不用图标） */}
       <div className="absolute inset-0">
         {displayCover ? (
-          <img src={displayCover} alt="" className="h-full w-full object-cover" draggable={false} />
+          <img src={displayCover} alt="" className="game-cover-art h-full w-full object-cover" style={coverFramingStyle(coverFraming(game))} draggable={false} />
         ) : (
           <div
             className="h-full w-full"
@@ -550,4 +551,4 @@ export function GameDetail({ game }: { game: Game }) {
       </footer>
     </div>
   );
-}
+});

@@ -77,7 +77,7 @@ export function Modal({ children, onClose, width = 560, title }: Props) {
     >
       <div
         ref={panelRef}
-        className="modal-panel glass animate-pop-in relative w-full overflow-hidden rounded-2xl shadow-2xl"
+        className="modal-panel animate-modal-in relative w-full overflow-hidden rounded-2xl shadow-2xl"
         style={{ maxWidth: width }}
       >
         {children}

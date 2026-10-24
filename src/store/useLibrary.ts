@@ -14,6 +14,7 @@ import type {
   Game,
   NavKey,
   Settings,
+  SidebarBackgroundFit,
   Session,
   SortKey,
   ScanEntry,
@@ -44,6 +45,7 @@ type LibraryState = {
   editing: Game | null;
   formAutofill: boolean;
   settingsOpen: boolean;
+  settingsInitialTab: "general" | "covers";
   scanOpen: boolean;
   metaOpen: boolean;
   toast: Toast | null;
@@ -63,8 +65,10 @@ type LibraryState = {
   launchGame: (id: string) => Promise<void>;
   toggleFavorite: (id: string) => Promise<void>;
   updateSettings: (next: Settings) => Promise<void>;
+  applySidebarBackgroundFit: (fit: SidebarBackgroundFit) => Promise<boolean>;
   setCloseBehavior: (behavior: CloseBehavior) => Promise<void>;
   openSettings: () => void;
+  openCoverSettings: () => void;
   closeSettings: () => void;
   openScan: () => void;
   closeScan: () => void;
@@ -86,6 +90,13 @@ function mergeSavedGame(games: Game[], saved: Game): Game[] {
 }
 
 export const useLibrary = create<LibraryState>((set, get) => {
+  // 与即时外观修改共用顺序；任务执行时取最新镜像，避免确认草稿被迟到写入覆盖。
+  let settingsQueue: Promise<unknown> = Promise.resolve();
+  const queueSettings = <T,>(job: () => Promise<T>): Promise<T> => {
+    const result = settingsQueue.then(job, job);
+    settingsQueue = result.catch(() => undefined);
+    return result;
+  };
   // Persist first; accept only the backend's acknowledged record into the library.
   const persistGame = async (game: Game) => {
     const saved = await api.saveGame(game);
@@ -148,6 +159,7 @@ export const useLibrary = create<LibraryState>((set, get) => {
     editing: null,
     formAutofill: false,
     settingsOpen: false,
+    settingsInitialTab: "general",
     scanOpen: false,
     metaOpen: false,
     toast: null,
@@ -182,7 +194,7 @@ export const useLibrary = create<LibraryState>((set, get) => {
         const next = { ...settings, sort };
         set({ settings: next });
         try {
-          await api.saveSettings(next);
+          await queueSettings(() => api.saveSettings(get().settings ?? next));
         } catch {
           /* 排序偏好保存失败不打断使用 */
         }
@@ -290,23 +302,42 @@ export const useLibrary = create<LibraryState>((set, get) => {
     updateSettings: async (next) => {
       set({ settings: next, sort: next.sort });
       try {
-        await api.saveSettings(next);
+        await queueSettings(() => api.saveSettings(get().settings ?? next));
       } catch (err) {
         get().showToast("error", `保存设置失败：${String(err)}`);
+      }
+    },
+
+    /** 适配草稿先落盘；仅确认的字段并入最新镜像，不覆盖期间的透明度等修改。 */
+    applySidebarBackgroundFit: async (fit) => {
+      try {
+        await queueSettings(async () => {
+          const current = get().settings;
+          if (!current) throw new Error("设置尚未加载，请稍后重试");
+          const saved = await api.saveSettings({ ...current, theme: { ...current.theme, sidebarBackgroundFit: fit } });
+          set((state) => state.settings ? { settings: { ...state.settings, theme: { ...state.settings.theme, sidebarBackgroundFit: saved.theme.sidebarBackgroundFit ?? fit } } } : {});
+        });
+        return true;
+      } catch (error) {
+        get().showToast("error", `保存背景适配失败：${String(error)}`);
+        return false;
       }
     },
 
     /** 关闭偏好先落盘再展示，写失败时保留用户原选择。 */
     setCloseBehavior: async (behavior) => {
       try {
-        const settings = await api.setCloseBehavior(behavior);
-        set({ settings, sort: settings.sort });
+        await queueSettings(async () => {
+          const settings = await api.setCloseBehavior(behavior);
+          set((state) => ({ settings: state.settings ? { ...state.settings, closeBehavior: settings.closeBehavior } : settings }));
+        });
       } catch (err) {
         get().showToast("error", `保存关闭行为失败：${String(err)}`);
       }
     },
 
-    openSettings: () => set({ settingsOpen: true }),
+    openSettings: () => set({ settingsOpen: true, settingsInitialTab: "general" }),
+    openCoverSettings: () => set({ settingsOpen: true, settingsInitialTab: "covers", metaOpen: false }),
     closeSettings: () => set({ settingsOpen: false }),
     openScan: () => set({ scanOpen: true }),
     closeScan: () => set({ scanOpen: false }),

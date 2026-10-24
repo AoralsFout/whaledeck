@@ -8,7 +8,7 @@ import { api } from "../lib/ipc";
 import { newGameDraft, type ScanEntry, type Settings } from "../types";
 import { useLibrary } from "./useLibrary";
 
-vi.mock("../lib/ipc", () => ({ api: { saveGame: vi.fn(), setCloseBehavior: vi.fn() } }));
+vi.mock("../lib/ipc", () => ({ api: { saveGame: vi.fn(), setCloseBehavior: vi.fn(), saveSettings: vi.fn() } }));
 
 const entries: ScanEntry[] = ["A", "B", "C"].map((name) => ({
   name: `${name}.exe`, path: `C:\\Games\\${name}.exe`, size: 1024,
@@ -23,6 +23,42 @@ describe("游戏写入", () => {
     useLibrary.getState().hideToast();
     vi.useRealTimers();
     vi.resetAllMocks();
+  });
+
+  const appearanceSettings = (): Settings => ({
+    theme: { preset: "whale", mode: "dark", primary: "#4fd6e8", accent: "#ff9ec7", backgroundFile: null, backgroundDim: .55, sidebarAutoHide: true, sidebarGlass: false, sidebarBackgroundFile: null, sidebarTransparency: .52 },
+    sort: "recent", categories: [], closeBehavior: null,
+  });
+
+  it("适配保存失败不应用，重试成功后才更新确认参数", async () => {
+    useLibrary.setState({ settings: appearanceSettings() });
+    const fit = { enabled: true, mode: "cover" as const, positionX: 72, positionY: 50 };
+    vi.mocked(api.saveSettings).mockRejectedValueOnce("磁盘写入失败").mockImplementationOnce(async (settings) => settings);
+    expect(await useLibrary.getState().applySidebarBackgroundFit(fit)).toBe(false);
+    expect(useLibrary.getState().settings?.theme.sidebarBackgroundFit).toBeUndefined();
+    expect(await useLibrary.getState().applySidebarBackgroundFit(fit)).toBe(true);
+    expect(useLibrary.getState().settings?.theme.sidebarBackgroundFit).toEqual(fit);
+  });
+
+  it("适配保存与透明度、关闭偏好串行，迟到结果不覆盖最新外观", async () => {
+    const initial = appearanceSettings();
+    useLibrary.setState({ settings: initial });
+    let finish!: (settings: Settings) => void;
+    vi.mocked(api.saveSettings).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; })).mockImplementation(async (settings) => settings);
+    vi.mocked(api.setCloseBehavior).mockResolvedValue({ ...initial, closeBehavior: "hide" });
+    const fit = { enabled: true, mode: "contain" as const, positionX: 50, positionY: 50 };
+    const applying = useLibrary.getState().applySidebarBackgroundFit(fit);
+    await vi.waitFor(() => expect(api.saveSettings).toHaveBeenCalledTimes(1));
+    expect(useLibrary.getState().settings?.theme.sidebarBackgroundFit).toBeUndefined();
+    const transparency = useLibrary.getState().updateSettings({ ...initial, theme: { ...initial.theme, sidebarTransparency: .81 } });
+    const closing = useLibrary.getState().setCloseBehavior("hide");
+    expect(api.saveSettings).toHaveBeenCalledTimes(1);
+    expect(api.setCloseBehavior).not.toHaveBeenCalled();
+    finish({ ...initial, theme: { ...initial.theme, sidebarBackgroundFit: fit } });
+    expect(await applying).toBe(true);
+    await transparency; await closing;
+    expect(vi.mocked(api.saveSettings).mock.calls[1][0].theme).toMatchObject({ sidebarBackgroundFit: fit, sidebarTransparency: .81 });
+    expect(useLibrary.getState().settings).toMatchObject({ theme: { sidebarBackgroundFit: fit, sidebarTransparency: .81 }, closeBehavior: "hide" });
   });
 
   it("打开自动补全与取消均不改库，普通编辑与新增清除自动获取标记", () => {
@@ -41,7 +77,7 @@ describe("游戏写入", () => {
 
   it("关闭行为只在保存成功后更新，失败时保留原选择", async () => {
     const settings: Settings = {
-      theme: { preset: "whale", mode: "dark", primary: "#4fd6e8", accent: "#ff9ec7", backgroundFile: null, backgroundDim: .55 },
+      theme: { preset: "whale", mode: "dark", primary: "#4fd6e8", accent: "#ff9ec7", backgroundFile: null, backgroundDim: .55, sidebarAutoHide: true, sidebarGlass: false, sidebarBackgroundFile: null, sidebarTransparency: .52 },
       sort: "recent", categories: [], closeBehavior: null,
     };
     useLibrary.setState({ settings });

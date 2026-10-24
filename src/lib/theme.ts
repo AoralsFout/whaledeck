@@ -48,6 +48,8 @@ export function applyTheme(theme: Theme): void {
   const [ar, ag, ab] = hexToRgb(theme.accent);
   root.style.setProperty("--accent-rgb", `${ar}, ${ag}, ${ab}`);
   root.style.setProperty("--bg-dim", String(theme.backgroundDim));
+  const transparency = theme.sidebarTransparency ?? 0.52;
+  root.style.setProperty("--sidebar-overlay-opacity", String(1 - Math.min(1, Math.max(0, transparency))));
 }
 
 export function presetToTheme(preset: ThemePreset, base: Theme): Theme {

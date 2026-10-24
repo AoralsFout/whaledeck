@@ -2,6 +2,7 @@
 //!
 //! 这里只负责「把各模块接起来」，不实现具体业务算法。
 //! 对应文档：docs/系统架构.md、docs/后端实现.md「模块与装配」。
+mod background_fit;
 mod commands;
 mod cover;
 mod launcher;
@@ -74,6 +75,7 @@ pub fn run() {
             lifecycle::set_close_behavior,
             commands::list_games,
             commands::save_game,
+            commands::save_cover_framing,
             commands::delete_game,
             commands::launch_game,
             commands::get_sessions,
@@ -86,6 +88,7 @@ pub fn run() {
             commands::import_icon,
             commands::import_background,
             commands::asset_path,
+            background_fit::fit_sidebar_background,
             commands::get_settings,
             commands::save_settings,
             commands::open_data_dir,

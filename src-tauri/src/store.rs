@@ -314,6 +314,7 @@ mod tests {
             args: String::new(),
             extra_process_names: vec![],
             cover_file: None,
+            cover_framing: None,
             icon_file: None,
             category: "动作".into(),
             tags: vec!["测试".into()],
@@ -467,13 +468,26 @@ mod tests {
         let default = store.load_settings();
         assert_eq!(default.theme.preset, "whale");
         assert_eq!(default.sort, "recent");
+        assert!(default.theme.sidebar_auto_hide);
+        assert!(!default.theme.sidebar_glass);
 
         let mut s = default.clone();
         s.theme.primary = "#ff0000".into();
+        s.theme.sidebar_auto_hide = false;
+        s.theme.sidebar_glass = true;
+        s.theme.sidebar_background_file = Some("sidebar.png".into());
+        s.theme.sidebar_transparency = 0.75;
         s.categories = vec!["独立".into()];
         store.save_settings(&s).unwrap();
         let loaded = store.load_settings();
         assert_eq!(loaded.theme.primary, "#ff0000");
+        assert!(!loaded.theme.sidebar_auto_hide);
+        assert!(loaded.theme.sidebar_glass);
+        assert_eq!(
+            loaded.theme.sidebar_background_file,
+            s.theme.sidebar_background_file
+        );
+        assert_eq!(loaded.theme.sidebar_transparency, 0.75);
         assert_eq!(loaded.categories, vec!["独立".to_string()]);
     }
 

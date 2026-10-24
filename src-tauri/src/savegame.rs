@@ -221,6 +221,7 @@ mod tests {
             args: String::new(),
             extra_process_names: vec![],
             cover_file: None,
+            cover_framing: None,
             icon_file: None,
             category: String::new(),
             tags: vec![],

@@ -5,7 +5,6 @@
  * 对应文档：docs/前端实现.md「状态分层」「启动、主题与资源」。
  */
 import { useEffect, useLayoutEffect, useState } from "react";
-import { Menu } from "lucide-react";
 import { onGameStopped, onLaunchFailed, onSettingsChanged } from "./lib/ipc";
 import { applyTheme } from "./lib/theme";
 import { useAssetUrl } from "./lib/useAssetUrl";
@@ -13,7 +12,7 @@ import { APP_ICON_URL } from "./lib/brand";
 import { showWindowWhenReady } from "./lib/startup";
 import { useLibrary } from "./store/useLibrary";
 import { useLibraryView } from "./store/useLibraryView";
-import { Sidebar } from "./components/Sidebar";
+import { SidebarNavigation } from "./components/SidebarNavigation";
 import { GameDetail } from "./components/GameDetail";
 import { GameForm } from "./components/GameForm";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -104,13 +103,10 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell flex h-full" data-navigation-open={navigationOpen}>
+    <div className="app-shell flex h-full" data-navigation-open={navigationOpen} data-sidebar-auto-hide={settings?.theme.sidebarAutoHide ?? true}>
       <WindowChrome />
-      <button className="btn mobile-nav-toggle" aria-label="打开游戏库" aria-expanded={navigationOpen} aria-controls="library-sidebar" onClick={() => setNavigationOpen(true)}>
-        <Menu size={17} aria-hidden="true" /> 游戏库
-      </button>
-      <Sidebar onNavigate={() => setNavigationOpen(false)} />
-      <main id="main-content" className="relative min-h-0 min-w-0 flex-1">
+      <SidebarNavigation open={navigationOpen} onOpenChange={setNavigationOpen} autoHide={settings?.theme.sidebarAutoHide ?? true} dialogOpen={formOpen || settingsOpen || scanOpen || metaOpen} />
+      <main id="main-content" tabIndex={-1} className="relative min-h-0 min-w-0 flex-1">
         {selected ? <GameDetail key={selected.id} game={selected} /> : <EmptyState onAdd={openNew} filtered={gameCount > 0} onReset={() => {
           useLibrary.getState().setQuery("");
           useLibrary.getState().setNav({ type: "all" });

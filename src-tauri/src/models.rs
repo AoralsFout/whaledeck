@@ -21,6 +21,8 @@ pub struct Game {
     pub extra_process_names: Vec<String>,
     #[serde(default)]
     pub cover_file: Option<String>,
+    #[serde(default)]
+    pub cover_framing: Option<CoverFraming>,
     /// 程序图标（小的，用于列表缩略图），与封面分开存。
     #[serde(default)]
     pub icon_file: Option<String>,
@@ -56,6 +58,16 @@ pub struct Game {
     pub summary: String,
 }
 
+/// 绑定原封面文件的显示参数；更换封面后旧取景不会误用于新图。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoverFraming {
+    pub file: String,
+    pub position_x: f64,
+    pub position_y: f64,
+    pub zoom: f64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Theme {
@@ -65,6 +77,55 @@ pub struct Theme {
     pub accent: String,
     pub background_file: Option<String>,
     pub background_dim: f32,
+    #[serde(default = "default_sidebar_auto_hide")]
+    pub sidebar_auto_hide: bool,
+    #[serde(default)]
+    pub sidebar_glass: bool,
+    #[serde(default)]
+    pub sidebar_clear_glass: bool,
+    #[serde(default)]
+    pub sidebar_background_file: Option<String>,
+    #[serde(default = "default_sidebar_transparency")]
+    pub sidebar_transparency: f32,
+    #[serde(default)]
+    pub sidebar_background_fit: SidebarBackgroundFit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum BackgroundFitMode {
+    #[default]
+    Contain,
+    Cover,
+    Stretch,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SidebarBackgroundFit {
+    pub enabled: bool,
+    pub mode: BackgroundFitMode,
+    pub position_x: u8,
+    pub position_y: u8,
+}
+
+impl Default for SidebarBackgroundFit {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            mode: BackgroundFitMode::Contain,
+            position_x: 50,
+            position_y: 50,
+        }
+    }
+}
+
+fn default_sidebar_transparency() -> f32 {
+    0.52
+}
+
+fn default_sidebar_auto_hide() -> bool {
+    true
 }
 
 impl Default for Theme {
@@ -76,6 +137,12 @@ impl Default for Theme {
             accent: "#ff9ec7".into(),
             background_file: None,
             background_dim: 0.55,
+            sidebar_auto_hide: default_sidebar_auto_hide(),
+            sidebar_glass: false,
+            sidebar_clear_glass: false,
+            sidebar_background_file: None,
+            sidebar_transparency: default_sidebar_transparency(),
+            sidebar_background_fit: SidebarBackgroundFit::default(),
         }
     }
 }

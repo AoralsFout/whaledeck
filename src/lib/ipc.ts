@@ -8,10 +8,13 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   AutofillResult,
+  BackgroundFitRequest,
+  BackgroundFitResult,
   AutofillField,
   CloseAction,
   CloseBehavior,
   CloseRequest,
+  CoverFraming,
   Game,
   LaunchResult,
   MetaItem,
@@ -27,6 +30,7 @@ import type {
 export const api = {
   listGames: () => invoke<Game[]>("list_games"),
   saveGame: (game: Game) => invoke<Game>("save_game", { game }),
+  saveCoverFraming: (id: string, framing: CoverFraming) => invoke<Game>("save_cover_framing", { id, framing }),
   deleteGame: (id: string) => invoke<boolean>("delete_game", { id }),
   launchGame: (id: string) => invoke<LaunchResult>("launch_game", { id }),
   getSessions: () => invoke<Session[]>("get_sessions"),
@@ -42,10 +46,11 @@ export const api = {
     invoke<string>("import_cover", { id, src }),
   importIcon: (id: string, src: string) =>
     invoke<string>("import_icon", { id, src }),
-  importBackground: (src: string) =>
-    invoke<string>("import_background", { src }),
-  assetPath: (kind: "cover" | "background" | "icon" | "superres", file: string) =>
+  importBackground: (src: string, target: "main" | "sidebar" = "main") =>
+    invoke<string>("import_background", { src, target }),
+  assetPath: (kind: "cover" | "background" | "icon" | "superres" | "backgroundFit", file: string) =>
     invoke<string>("asset_path", { kind, file }),
+  fitSidebarBackground: (request: BackgroundFitRequest) => invoke<BackgroundFitResult>("fit_sidebar_background", { request }),
   getSettings: () => invoke<Settings>("get_settings"),
   saveSettings: (settings: Settings) =>
     invoke<Settings>("save_settings", { settings }),

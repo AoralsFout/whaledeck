@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
-import { CloudDownload, ImagePlus, Loader2, Search, X } from "lucide-react";
+import { CloudDownload, Crop, ImagePlus, Loader2, Search, X } from "lucide-react";
 import { api } from "../lib/ipc";
 import { useLibrary } from "../store/useLibrary";
 import { createMetaSearch } from "../store/metaSearch";
@@ -30,6 +30,7 @@ export function MetaDialog() {
   const game = useLibrary((s) => s.games.find((g) => g.id === s.selectedId) ?? null);
   const applyGame = useLibrary((s) => s.applyGame);
   const showToast = useLibrary((s) => s.showToast);
+  const openCoverSettings = useLibrary((s) => s.openCoverSettings);
 
   const [searchStore] = useState(() => createMetaSearch(game?.title ?? "", {
     search: api.searchMeta,
@@ -39,7 +40,7 @@ export function MetaDialog() {
   const [applying, setApplying] = useState<string | null>(null);
   useEffect(() => () => searchStore.getState().invalidate(), [searchStore]);
 
-  const apply = async (item: MetaItem) => {
+  const apply = async (item: MetaItem, adjustCover = false) => {
     if (!game) return;
     setApplying(item.id);
     try {
@@ -47,6 +48,7 @@ export function MetaDialog() {
       applyGame(updated);
       showToast("success", "已应用封面与信息");
       close();
+      if (adjustCover && updated.coverFile) openCoverSettings();
     } catch (err) {
       showToast("error", String(err));
     } finally {
@@ -184,13 +186,14 @@ export function MetaDialog() {
                       {item.developer && <span className="truncate">{item.developer}</span>}
                       {item.rating != null && <span>评分 {item.rating}</span>}
                     </div>
-                    <button
-                      className="btn btn-primary mt-3"
-                      onClick={() => void apply(item)}
-                      disabled={applying !== null}
-                    >
-                      {applying === item.id ? "应用中…" : "应用封面和信息"}
-                    </button>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button className="btn btn-primary" onClick={() => void apply(item)} disabled={applying !== null}>
+                        {applying === item.id ? "应用中…" : "应用封面和信息"}
+                      </button>
+                      {item.coverUrl && <button className="btn" disabled={applying !== null} onClick={() => void apply(item, true)}>
+                        <Crop size={14} aria-hidden="true" />应用并调整封面
+                      </button>}
+                    </div>
                   </div>
                 </div>
               );
@@ -205,9 +208,10 @@ export function MetaDialog() {
         <span className="hint">
           数据来自 Bangumi / VNDB / 月幕的公开接口，仅供个人整理使用
         </span>
-        <button className="btn" onClick={close}>
-          关闭
-        </button>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {game?.coverFile && <button className="btn" disabled={applying !== null} onClick={openCoverSettings}><Crop size={14} aria-hidden="true" />调整当前封面</button>}
+          <button className="btn" onClick={close}>关闭</button>
+        </div>
       </div>
     </Modal>
   );
