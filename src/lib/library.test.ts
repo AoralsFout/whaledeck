@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { Game } from "../types";
-import { collectCategories, countByCategory, filterGames, getLibraryView, sortGames } from "./library";
+import { collectCategories, filterGames, selectVisibleGame, sortGames } from "./library";
 
 function game(partial: Partial<Game>): Game {
   return {
@@ -44,25 +44,27 @@ const games: Game[] = [
 
 describe("游戏库视图", () => {
   it("初始选择来自排序后的可见结果，排除隐藏项", () => {
-    const view = getLibraryView([games[3], games[2], games[0]], { type: "all" }, "", "recent", null);
-    expect(view.selected?.id).toBe("1");
+    const visible = sortGames(filterGames([games[3], games[2], games[0]], { type: "all" }, ""), "recent");
+    expect(selectVisibleGame(visible, null)?.id).toBe("1");
   });
   it("筛选后保留仍在结果中的当前项", () => {
-    expect(getLibraryView(games, { type: "category", name: "动作" }, "", "recent", "3").selected?.id).toBe("3");
+    const visible = filterGames(games, { type: "category", name: "动作" }, "");
+    expect(selectVisibleGame(visible, "3")?.id).toBe("3");
   });
   it("当前项离开筛选结果时选择结果首项", () => {
-    const view = getLibraryView(games, { type: "favorites" }, "", "recent", "2");
-    expect(view.visible.map((g) => g.id)).toEqual(["1"]);
-    expect(view.selected?.id).toBe("1");
+    const visible = filterGames(games, { type: "favorites" }, "");
+    expect(visible.map((g) => g.id)).toEqual(["1"]);
+    expect(selectVisibleGame(visible, "2")?.id).toBe("1");
   });
   it("搜索无结果时清空详情", () => {
-    const view = getLibraryView(games, { type: "all" }, "没有这个游戏", "recent", "1");
-    expect(view.visible).toEqual([]);
-    expect(view.selected).toBeNull();
+    const visible = filterGames(games, { type: "all" }, "没有这个游戏");
+    expect(visible).toEqual([]);
+    expect(selectVisibleGame(visible, "1")).toBeNull();
   });
   it("删除当前项后使用排序首项，隐藏视图允许选择隐藏项", () => {
-    expect(getLibraryView(games.slice(1), { type: "all" }, "", "playtime", "1").selected?.id).toBe("2");
-    expect(getLibraryView(games, { type: "hidden" }, "", "recent", "1").selected?.id).toBe("4");
+    const visible = sortGames(filterGames(games.slice(1), { type: "all" }, ""), "playtime");
+    expect(selectVisibleGame(visible, "1")?.id).toBe("2");
+    expect(selectVisibleGame(filterGames(games, { type: "hidden" }, ""), "1")?.id).toBe("4");
   });
 });
 
@@ -116,8 +118,5 @@ describe("分类工具", () => {
     expect(list).toContain("种田");
     expect(list).toContain("独立");
     expect(list.filter((c) => c === "动作")).toHaveLength(1);
-  });
-  it("统计分类数量", () => {
-    expect(countByCategory(games, "动作")).toBe(3);
   });
 });

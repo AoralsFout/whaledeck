@@ -52,23 +52,10 @@ export function selectVisibleGame(visible: Game[], selectedId: string | null): G
   return visible.find((game) => game.id === selectedId) ?? visible[0] ?? null;
 }
 
-/** 列表与详情共享同一选择规则，避免展示筛选结果之外的项目。 */
-export function getLibraryView(
-  games: Game[], nav: NavKey, query: string, sort: SortKey, selectedId: string | null,
-) {
-  const visible = sortGames(filterGames(games, nav, query), sort);
-  const selected = selectVisibleGame(visible, selectedId);
-  return { visible, selected };
-}
-
 export function collectCategories(games: Game[], extra: string[]): string[] {
   const set = new Set<string>(extra);
   for (const game of games) {
     if (game.category) set.add(game.category);
   }
   return [...set].sort((a, b) => a.localeCompare(b, "zh-Hans-CN"));
-}
-
-export function countByCategory(games: Game[], name: string): number {
-  return games.filter((g) => g.category === name).length;
 }
