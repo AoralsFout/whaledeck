@@ -62,9 +62,7 @@ export type Theme = {
   backgroundFile: string | null;
   backgroundDim: number;
   sidebarAutoHide: boolean;
-  sidebarGlass: boolean;
   sidebarBlur?: number;
-  sidebarClearGlass?: boolean;
   sidebarBackgroundFile: string | null;
   sidebarTransparency: number;
   sidebarBackgroundFit?: SidebarBackgroundFit;

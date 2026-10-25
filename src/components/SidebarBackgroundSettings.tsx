@@ -28,7 +28,7 @@ export function SidebarBackgroundSettings({ theme, imageActions }: { theme: Them
   const showToast = useLibrary((state) => state.showToast);
   const source = sidebarBackgroundSource(theme, cover.source);
   const original = useAssetUrl(source?.sourceKind ?? "background", source?.file);
-  const fitted = useSidebarBackgroundFit(source, draft, Boolean(theme.sidebarGlass && !theme.sidebarClearGlass), source?.sourceKind === "superres" ? cover.revision : 0);
+  const fitted = useSidebarBackgroundFit(source, draft, true, source?.sourceKind === "superres" ? cover.revision : 0);
   useEffect(() => { setDraft(JSON.parse(savedKey) as SidebarBackgroundFit); }, [savedKey]);
   const dirty = JSON.stringify(draft) !== savedKey;
   // 请求尚未完成时用原图展示当前草稿，避免新参数套用到旧适配结果。
@@ -63,7 +63,7 @@ export function SidebarBackgroundSettings({ theme, imageActions }: { theme: Them
         <div className="sidebar-fit-controls">
           <div className="sidebar-fit-caption">
             <strong>{source ? "图像调整" : "添加一张背景"}</strong>
-            <p className="hint m-0">{source ? MODES.find((mode) => mode.value === draft.mode)?.hint : "选择左侧背景，或开启背景效果使用游戏封面。"}</p>
+            <p className="hint m-0">{source ? MODES.find((mode) => mode.value === draft.mode)?.hint : "选择左侧背景；未设置独立背景时，自动使用当前游戏封面。"}</p>
           </div>
           {draft.mode === "cover" && <fieldset className="sidebar-fit-position" disabled={!source}>
             <label className="sidebar-control-label" htmlFor="sidebar-fit-x"><span>水平位置</span><output htmlFor="sidebar-fit-x">{draft.positionX}%</output></label>

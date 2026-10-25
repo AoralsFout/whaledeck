@@ -11,7 +11,6 @@ export const DEFAULT_BACKGROUND_FIT: Readonly<SidebarBackgroundFit> = {
 /** 自定义图片优先；封面沿用共享选择，undefined 保留查询等待态而不误判成无图。 */
 export function sidebarBackgroundSource(theme: Theme, cover: { kind: "cover" | "superres"; file: string } | null | undefined): BackgroundSource | null | undefined {
   if (theme.sidebarBackgroundFile) return { sourceKind: "background", file: theme.sidebarBackgroundFile };
-  if (!theme.sidebarGlass && !theme.sidebarClearGlass) return null;
   return cover ? { sourceKind: cover.kind, file: cover.file } : cover;
 }
 

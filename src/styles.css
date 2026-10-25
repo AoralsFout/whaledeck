@@ -496,7 +496,7 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  backdrop-filter: blur(24px) saturate(1.15);
+  backdrop-filter: none;
 }
 /* 背景层不占布局空间，也不降低文字和控件透明度。 */
 .sidebar-background, .sidebar-background-image, .library-sidebar::after {
@@ -532,15 +532,12 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 .library-sidebar[data-glass="true"] {
   box-shadow: inset -1px 0 0 color-mix(in srgb, var(--text) 8%, transparent);
 }
-/* 清晰模式同时关闭图片滤镜和后方磨砂；无图片时也直接透出窗口背景。 */
-.library-sidebar[data-clear-glass="true"] { backdrop-filter: none; }
-.library-sidebar[data-clear-glass="true"] .sidebar-background-image {
-  inset: 0;
+/* 底色透明度独立于模糊度，满透明时移除所有附加底色与渐变。 */
+.library-sidebar[data-transparent="true"] .sidebar-background-image {
   background-color: transparent;
   background-image: var(--sidebar-image, none);
-  filter: none;
 }
-.library-sidebar[data-clear-glass="true"]::after { opacity: 0; }
+.library-sidebar[data-transparent="true"]::after { opacity: 0; }
 /* 派生图已经按可视区适配；扩边比例与后台画布一致，不能再用 cover 二次裁切。 */
 .library-sidebar .sidebar-background-image[data-background-fitted="true"] {
   left: calc(-1 * var(--sidebar-fit-padding-x));
@@ -866,7 +863,7 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 .settings-color-input::-webkit-color-swatch-wrapper { padding: 0; }
 .settings-color-input::-webkit-color-swatch { border: 0; border-radius: 6px; }
 .settings-category-list { align-items: flex-start; }
-.sidebar-options, .sidebar-fit-modes {
+.sidebar-fit-modes {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
@@ -901,6 +898,11 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 }
 .sidebar-control-label { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; color: var(--text); }
 .sidebar-control-label output { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.sidebar-auto-hide { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; font-size: 13px; color: var(--text); cursor: pointer; }
+.sidebar-auto-hide input { appearance: none; position: relative; width: 40px; height: 24px; margin: 0; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); cursor: pointer; }
+.sidebar-auto-hide input::before { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--text-dim); }
+.sidebar-auto-hide input:checked { background: var(--primary); border-color: var(--primary); }
+.sidebar-auto-hide input:checked::before { left: 19px; background: var(--bg); }
 .sidebar-fit-position .sidebar-control-label { margin-bottom: 0; }
 .settings-category-list .chip { padding: 5px 8px 5px 12px; font-size: 13px; }
 .settings-category-remove { display: grid; place-items: center; width: 28px; height: 28px; margin-left: 4px; flex-shrink: 0; }

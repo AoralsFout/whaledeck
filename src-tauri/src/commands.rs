@@ -864,8 +864,7 @@ mod game_write_tests {
         assert!(settings.theme.sidebar_background_file.is_none());
         assert_eq!(settings.theme.sidebar_transparency, 0.52);
         assert!(settings.theme.sidebar_auto_hide);
-        assert!(!settings.theme.sidebar_glass);
-        assert!(!settings.theme.sidebar_clear_glass);
+        assert_eq!(settings.theme.sidebar_blur, 24);
         assert!(settings.theme.sidebar_background_fit.enabled);
         assert_eq!(
             settings.theme.sidebar_background_fit.mode,
@@ -875,8 +874,7 @@ mod game_write_tests {
         assert_eq!(settings.theme.sidebar_background_fit.position_y, 50);
         let mut changed = settings;
         changed.theme.sidebar_auto_hide = false;
-        changed.theme.sidebar_glass = true;
-        changed.theme.sidebar_clear_glass = true;
+        changed.theme.sidebar_blur = 0;
         changed.theme.sidebar_transparency = 1.0;
         changed.theme.sidebar_background_file = Some("sidebar-background.png".into());
         changed.theme.sidebar_background_fit.enabled = true;
@@ -886,8 +884,7 @@ mod game_write_tests {
             serde_json::from_slice(&serde_json::to_vec(&changed).unwrap()).unwrap();
         assert_eq!(restored.theme.sidebar_transparency, 1.0);
         assert!(!restored.theme.sidebar_auto_hide);
-        assert!(restored.theme.sidebar_glass);
-        assert!(restored.theme.sidebar_clear_glass);
+        assert_eq!(restored.theme.sidebar_blur, 0);
         assert!(restored.theme.sidebar_background_fit.enabled);
         assert_eq!(
             restored.theme.sidebar_background_fit.mode,

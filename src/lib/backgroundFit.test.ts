@@ -18,16 +18,14 @@ describe("侧栏背景适配", () => {
     expect(backgroundFitSize(258, 820, 1, false)?.padding).toBe(0);
   });
 
-  it("沿用自定义图优先、磨砂封面回退与无图规则", () => {
-    const theme = { sidebarBackgroundFile: "custom.png", sidebarGlass: true } as Theme;
+  it("沿用自定义图优先、封面回退与无图规则", () => {
+    const theme = { sidebarBackgroundFile: "custom.png", sidebarBlur: 24 } as Theme;
     const cover = { kind: "cover" as const, file: "cover.jpg" };
     expect(sidebarBackgroundSource(theme, cover)).toEqual({ sourceKind: "background", file: "custom.png" });
     theme.sidebarBackgroundFile = null;
     expect(sidebarBackgroundSource(theme, cover)).toEqual({ sourceKind: "cover", file: "cover.jpg" });
     expect(sidebarBackgroundSource(theme, null)).toBeNull();
-    theme.sidebarGlass = false;
-    expect(sidebarBackgroundSource(theme, cover)).toBeNull();
-    theme.sidebarClearGlass = true;
+    theme.sidebarBlur = 0;
     expect(sidebarBackgroundSource(theme, cover)).toEqual({ sourceKind: "cover", file: "cover.jpg" });
     expect(sidebarBackgroundSource(theme, null)).toBeNull();
     theme.sidebarBackgroundFile = "custom.png";
@@ -35,8 +33,8 @@ describe("侧栏背景适配", () => {
   });
 
   it("磨砂与清晰背景沿用两档超分选择，查询待定不等同于无图", () => {
-    for (const effect of [{ sidebarGlass: true }, { sidebarClearGlass: true }]) {
-      const theme = { sidebarBackgroundFile: null, ...effect } as Theme;
+    for (const blur of [0, 24, 48]) {
+      const theme = { sidebarBackgroundFile: null, sidebarBlur: blur } as Theme;
       for (const preset of ["efficient", "quality"]) {
         expect(sidebarBackgroundSource(theme, { kind: "superres", file: `${preset}.png` }))
           .toEqual({ sourceKind: "superres", file: `${preset}.png` });
@@ -47,8 +45,7 @@ describe("侧栏背景适配", () => {
       expect(sidebarBackgroundSource(theme, undefined)).toEqual({ sourceKind: "background", file: "custom.png" });
       expect(sidebarBackgroundSource(theme, { kind: "superres", file: "quality.png" })).toEqual({ sourceKind: "background", file: "custom.png" });
       theme.sidebarBackgroundFile = null;
-      theme.sidebarGlass = theme.sidebarClearGlass = false;
-      expect(sidebarBackgroundSource(theme, undefined)).toBeNull();
+      expect(sidebarBackgroundSource(theme, undefined)).toBeUndefined();
     }
   });
 

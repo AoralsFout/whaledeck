@@ -77,9 +77,6 @@ export function SettingsPanel() {
 
   if (!settings) return null;
   const theme = settings.theme;
-  // 兼容历史双开记录，选中态与侧栏实际采用的效果保持一致。
-  const sidebarGlass = Boolean(theme.sidebarGlass && !theme.sidebarClearGlass);
-  const showSidebarBackground = !(theme.sidebarAutoHide ?? true) || sidebarGlass || Boolean(theme.sidebarClearGlass);
 
   const patchTheme = (patch: Partial<Theme>) => {
     // 选图跨越异步对话框，从最新状态合并，避免覆盖期间的外观修改。
@@ -371,12 +368,11 @@ export function SettingsPanel() {
           {tab === "sidebar" && (
             <>
               <Section title="侧栏效果" icon={<PanelLeft size={16} aria-hidden="true" />}>
-                <div className="sidebar-options" role="group" aria-label="侧栏效果">
-                  <button type="button" className="sidebar-segment" aria-pressed={theme.sidebarAutoHide ?? true} onClick={() => patchTheme({ sidebarAutoHide: !(theme.sidebarAutoHide ?? true) })}>自动隐藏</button>
-                  <button type="button" className="sidebar-segment" aria-pressed={sidebarGlass} onClick={() => patchTheme({ sidebarGlass: !sidebarGlass, sidebarClearGlass: false })}>半透明磨砂</button>
-                  <button type="button" className="sidebar-segment" aria-pressed={theme.sidebarClearGlass ?? false} onClick={() => patchTheme({ sidebarClearGlass: !theme.sidebarClearGlass, sidebarGlass: false })}>全透明背景</button>
-                </div>
-                {sidebarGlass && <div>
+                <label className="sidebar-auto-hide" htmlFor="sidebar-auto-hide">
+                  <span>自动隐藏</span>
+                  <input id="sidebar-auto-hide" type="checkbox" role="switch" aria-checked={theme.sidebarAutoHide ?? true} checked={theme.sidebarAutoHide ?? true} onChange={(e) => patchTheme({ sidebarAutoHide: e.target.checked })} />
+                </label>
+                <div>
                   <label className="sidebar-control-label" htmlFor="sidebar-blur"><span>模糊度</span><output htmlFor="sidebar-blur">{sidebarBlur(theme.sidebarBlur)} px</output></label>
                   <input
                     id="sidebar-blur"
@@ -389,8 +385,8 @@ export function SettingsPanel() {
                     onChange={(e) => patchTheme({ sidebarBlur: Number(e.target.value) })}
                     className="w-full accent-[var(--primary)]"
                   />
-                </div>}
-                {!theme.sidebarClearGlass && <div>
+                </div>
+                <div>
                   <label className="sidebar-control-label" htmlFor="sidebar-transparency"><span>底色透明度</span><output htmlFor="sidebar-transparency">{Math.round((theme.sidebarTransparency ?? 0.52) * 100)}%</output></label>
                   <input
                     id="sidebar-transparency"
@@ -403,9 +399,9 @@ export function SettingsPanel() {
                     onChange={(e) => patchTheme({ sidebarTransparency: Number(e.target.value) / 100 })}
                     className="w-full accent-[var(--primary)]"
                   />
-                </div>}
+                </div>
               </Section>
-              {showSidebarBackground && <Section title="背景与取景" icon={<ImagePlus size={16} aria-hidden="true" />}>
+              <Section title="背景与取景" icon={<ImagePlus size={16} aria-hidden="true" />}>
                 <SidebarBackgroundSettings theme={theme} imageActions={<>
                   <button className="btn" onClick={() => void pickBackground("sidebar")} disabled={busy}>
                     <ImagePlus size={14} aria-hidden="true" />
@@ -416,9 +412,9 @@ export function SettingsPanel() {
                       <Trash2 size={14} aria-hidden="true" /> 清除背景
                     </button>
                   )}
-                  <span className="hint">{theme.sidebarBackgroundFile ? "自定义背景" : theme.sidebarGlass || theme.sidebarClearGlass ? "跟随当前游戏封面" : "使用应用背景"}</span>
+                  <span className="hint">{theme.sidebarBackgroundFile ? "自定义背景" : "跟随当前游戏封面"}</span>
                 </>} />
-              </Section>}
+              </Section>
             </>
           )}
 

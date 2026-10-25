@@ -26,7 +26,7 @@ describe("游戏写入", () => {
   });
 
   const appearanceSettings = (): Settings => ({
-    theme: { preset: "whale", mode: "dark", primary: "#4fd6e8", accent: "#ff9ec7", backgroundFile: null, backgroundDim: .55, sidebarAutoHide: true, sidebarGlass: false, sidebarBackgroundFile: null, sidebarTransparency: .52 },
+    theme: { preset: "whale", mode: "dark", primary: "#4fd6e8", accent: "#ff9ec7", backgroundFile: null, backgroundDim: .55, sidebarAutoHide: true, sidebarBlur: 0, sidebarBackgroundFile: null, sidebarTransparency: .52 },
     sort: "recent", categories: [], closeBehavior: null,
   });
 
@@ -77,7 +77,7 @@ describe("游戏写入", () => {
 
   it("关闭行为只在保存成功后更新，失败时保留原选择", async () => {
     const settings: Settings = {
-      theme: { preset: "whale", mode: "dark", primary: "#4fd6e8", accent: "#ff9ec7", backgroundFile: null, backgroundDim: .55, sidebarAutoHide: true, sidebarGlass: false, sidebarBackgroundFile: null, sidebarTransparency: .52 },
+      theme: { preset: "whale", mode: "dark", primary: "#4fd6e8", accent: "#ff9ec7", backgroundFile: null, backgroundDim: .55, sidebarAutoHide: true, sidebarBlur: 0, sidebarBackgroundFile: null, sidebarTransparency: .52 },
       sort: "recent", categories: [], closeBehavior: null,
     };
     useLibrary.setState({ settings });

@@ -10,6 +10,7 @@ import { collectCategories } from "../lib/library";
 import { DEFAULT_BACKGROUND_FIT, sidebarBackgroundSource } from "../lib/backgroundFit";
 import { useSidebarBackgroundFit } from "../lib/useSidebarBackgroundFit";
 import { useSidebarPalette } from "../lib/useSidebarPalette";
+import { sidebarBlur } from "../lib/theme";
 import { memo, useMemo } from "react";
 import { SidebarBackground } from "./SidebarBackground";
 import { Brand } from "./Brand";
@@ -90,13 +91,13 @@ export const Sidebar = memo(function Sidebar({ onNavigate }: { onNavigate: () =>
   const settings = useLibrary((s) => s.settings);
   const { visible } = useLibraryView();
   const cover = useCoverSelection();
-  const clearGlass = settings?.theme.sidebarClearGlass ?? false;
-  const glass = Boolean(settings?.theme.sidebarGlass && !clearGlass);
+  const transparent = (settings?.theme.sidebarTransparency ?? .52) >= 1;
+  const glass = sidebarBlur(settings?.theme.sidebarBlur) > 0;
   const fitSource = settings ? sidebarBackgroundSource(settings.theme, cover.source) : null;
-  const fitted = useSidebarBackgroundFit(fitSource, settings?.theme.sidebarBackgroundFit ?? DEFAULT_BACKGROUND_FIT, glass, fitSource?.sourceKind === "superres" ? cover.revision : 0);
+  const fitted = useSidebarBackgroundFit(fitSource, settings?.theme.sidebarBackgroundFit ?? DEFAULT_BACKGROUND_FIT, true, fitSource?.sourceKind === "superres" ? cover.revision : 0);
   // 图片和取景必须一起交接；原图回退会先居中，再跳到后台生成的取景。
   const displayedBackground = fitted.image?.url;
-  const palette = useSidebarPalette(fitted.image, settings?.theme.sidebarTransparency ?? .52, clearGlass);
+  const palette = useSidebarPalette(fitted.image, settings?.theme.sidebarTransparency ?? .52, transparent);
   const nav = useLibrary((s) => s.nav);
   const setNav = useLibrary((s) => s.setNav);
   const query = useLibrary((s) => s.query);
@@ -129,7 +130,7 @@ export const Sidebar = memo(function Sidebar({ onNavigate }: { onNavigate: () =>
       className="library-sidebar flex shrink-0 flex-col"
       data-has-background={Boolean(displayedBackground)}
       data-glass={glass}
-      data-clear-glass={clearGlass}
+      data-transparent={transparent}
       data-adaptive-color={Boolean(palette)}
       style={{
         ...palette,
