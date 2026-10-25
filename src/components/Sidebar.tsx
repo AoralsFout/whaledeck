@@ -9,7 +9,8 @@ import { formatPlaytime, formatRelative } from "../lib/format";
 import { collectCategories } from "../lib/library";
 import { DEFAULT_BACKGROUND_FIT, sidebarBackgroundSource } from "../lib/backgroundFit";
 import { useSidebarBackgroundFit } from "../lib/useSidebarBackgroundFit";
-import { memo, useMemo, type CSSProperties } from "react";
+import { memo, useMemo } from "react";
+import { SidebarBackground } from "./SidebarBackground";
 import { Brand } from "./Brand";
 import { GameIcon } from "./GameIcon";
 import { useLibrary } from "../store/useLibrary";
@@ -123,16 +124,13 @@ export const Sidebar = memo(function Sidebar({ onNavigate }: { onNavigate: () =>
       aria-label="游戏库"
       className="library-sidebar flex shrink-0 flex-col border-r"
       data-has-background={Boolean(displayedBackground)}
-      data-background-fitted={Boolean(fitted.image)}
       data-glass={glass}
       data-clear-glass={clearGlass}
       style={{
         borderColor: "var(--border)",
-        "--sidebar-image": displayedBackground ? `url(${JSON.stringify(displayedBackground)})` : "none",
-        "--sidebar-fit-padding-x": `${fitted.image ? fitted.image.padding / fitted.image.width * 100 : 0}%`,
-        "--sidebar-fit-padding-y": `${fitted.image ? fitted.image.padding / fitted.image.height * 100 : 0}%`,
-      } as CSSProperties}
+      }}
     >
+      <SidebarBackground image={fitted.image} mode={settings?.theme.detailBackgroundTransition ?? "blur"} />
       <div className="sidebar-brand flex items-center gap-2.5 px-4 pb-4 pt-4" data-tauri-drag-region>
         <Brand />
         <button

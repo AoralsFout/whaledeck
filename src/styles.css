@@ -494,17 +494,19 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
   backdrop-filter: blur(24px) saturate(1.15);
 }
 /* 背景层不占布局空间，也不降低文字和控件透明度。 */
-.library-sidebar::before, .library-sidebar::after {
+.sidebar-background, .sidebar-background-image, .library-sidebar::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
-.library-sidebar::before {
+.sidebar-background {
   z-index: -2;
+}
+.sidebar-background-image {
   background: var(--sidebar-image, none) center / cover no-repeat;
 }
-.library-sidebar[data-has-background="true"]::before { background-color: var(--bg); }
+.library-sidebar[data-has-background="true"] .sidebar-background-image { background-color: var(--bg); }
 /* 独立图片与底色已覆盖背后画面，不重复对窗口内容做实时背景采样。 */
 .library-sidebar[data-has-background="true"] { backdrop-filter: none; }
 .library-sidebar::after {
@@ -513,7 +515,7 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
   opacity: var(--sidebar-overlay-opacity);
 }
 /* 只模糊独立图片层，扩边后裁切以避免四周出现空白；控件不参与模糊。 */
-.library-sidebar[data-glass="true"]::before {
+.library-sidebar[data-glass="true"] .sidebar-background-image {
   inset: -36px;
   background-image: var(--sidebar-image, none), linear-gradient(155deg, rgba(var(--primary-rgb), .24), transparent 55%, rgba(var(--accent-rgb), .16));
   filter: blur(24px) saturate(1.15);
@@ -523,7 +525,7 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 }
 /* 清晰模式同时关闭图片滤镜和后方磨砂；无图片时也直接透出窗口背景。 */
 .library-sidebar[data-clear-glass="true"] { backdrop-filter: none; }
-.library-sidebar[data-clear-glass="true"]::before {
+.library-sidebar[data-clear-glass="true"] .sidebar-background-image {
   inset: 0;
   background-color: transparent;
   background-image: var(--sidebar-image, none);
@@ -531,7 +533,7 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 }
 .library-sidebar[data-clear-glass="true"]::after { opacity: 0; }
 /* 派生图已经按可视区适配；扩边比例与后台画布一致，不能再用 cover 二次裁切。 */
-.library-sidebar[data-background-fitted="true"]::before {
+.library-sidebar .sidebar-background-image[data-background-fitted="true"] {
   left: calc(-1 * var(--sidebar-fit-padding-x));
   right: calc(-1 * var(--sidebar-fit-padding-x));
   top: calc(-1 * var(--sidebar-fit-padding-y));
