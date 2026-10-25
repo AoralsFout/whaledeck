@@ -4,7 +4,7 @@
  * 外层封面跨游戏保留；内容区以游戏 id 为 key，隔离计时/备份/确认状态。
  * 对应文档：docs/界面与交互.md §2.2、docs/前端实现.md §3.1。
  */
-import { memo, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useState } from "react";
 import { useStore } from "zustand";
 import {
   Archive,
@@ -33,17 +33,9 @@ import {
   shortPath,
 } from "../lib/format";
 import { coverFraming } from "../lib/coverFraming";
-import { invalidateAssetUrls } from "../lib/assets";
-import {
-  api,
-  onSuperResCancelled,
-  onSuperResDone,
-  onSuperResFailed,
-  onSuperResProgress,
-  type SuperResPreset,
-} from "../lib/ipc";
+import { api, type SuperResPreset } from "../lib/ipc";
 import { useLibrary } from "../store/useLibrary";
-import { coverSuperresSource, createCoverSuperres, presetLabel } from "../store/coverSuperres";
+import { type createCoverSuperres, presetLabel } from "../store/coverSuperres";
 import { createCoverArtwork } from "../store/coverArtwork";
 import { createSaveBackups } from "../store/saveBackups";
 import type { CoverQuickEditor } from "../store/coverQuickEdit";
@@ -52,6 +44,7 @@ import { ActionTooltips } from "./ActionTooltips";
 import { GameIcon } from "./GameIcon";
 import { DetailBackground } from "./DetailBackground";
 import { TextTransitionProvider, TransitionText } from "./TransitionText";
+import { useCoverSelection } from "./CoverSelectionProvider";
 
 const PANEL_BG = "rgba(10, 16, 30, 0.38)";
 const PANEL_STYLE = {
@@ -96,18 +89,10 @@ export const GameDetail = memo(function GameDetail({ game, coverEditor }: { game
   const textTransition = useLibrary(s => s.settings?.theme.detailTextTransition ?? "fade");
   const framingDraft = useStore(coverEditor, state => state.draft);
   const showToast = useLibrary((s) => s.showToast);
-  const enhanceStore = useMemo(() => createCoverSuperres(game.id, {
-    status: api.superresStatus, task: api.superresTask, generate: api.superresGenerate,
-    cancel: api.superresCancel, remove: api.superresRemove,
-    progress: onSuperResProgress, done: onSuperResDone,
-    failed: onSuperResFailed, cancelled: onSuperResCancelled, notify: showToast,
-    invalidate: file => invalidateAssetUrls("superres", file),
-  }), [game.id, game.coverFile, showToast]);
-  useEffect(() => enhanceStore.getState().connect(), [enhanceStore]);
+  const { enhanceStore, source: coverSource, revision } = useCoverSelection();
   const enhancement = useStore(enhanceStore);
-  const coverSource = coverSuperresSource(enhancement, game.coverFile);
   const framing = framingDraft ?? coverFraming(game);
-  const scope = JSON.stringify([game.id, game.coverFile, coverSource?.kind === "superres" ? enhancement.imageRevision[enhancement.preset] : 0]);
+  const scope = JSON.stringify([game.id, game.coverFile, revision]);
   const [artwork] = useState(() => createCoverArtwork());
   const frame = useStore(artwork, state => state.frame);
   useEffect(() => () => artwork.getState().dispose(), [artwork]);
@@ -462,7 +447,7 @@ function GameDetailContent({ game, enhanceStore }: { game: Game; enhanceStore: R
                 : "用默认程序打开"}
           </button>
           <select
-            className="btn !px-2 text-[12px]"
+            className="btn btn-icon-glass detail-preset-select text-[12px]"
             aria-label="封面增强档位"
             value={enhancement.preset}
             disabled={enhanceBusy || !game.coverFile}

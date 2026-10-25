@@ -66,6 +66,7 @@ pub async fn fit_sidebar_background(
 fn source_path(root: &Path, request: &BackgroundFitRequest) -> Result<PathBuf, String> {
     let directory = match request.source_kind.as_str() {
         "cover" => "covers",
+        "superres" => "superres",
         "background" => "backgrounds",
         _ => return Err("背景来源无效，请重新选择图片".into()),
     };
@@ -409,6 +410,47 @@ mod tests {
             generate(dir.path(), &changed).unwrap().file
         );
         assert_eq!(image::open(source).unwrap().dimensions(), (40, 20));
+    }
+
+    #[test]
+    fn fits_original_and_both_superres_sources_without_crossing_directories() {
+        let dir = tempfile::tempdir().unwrap();
+        for directory in ["covers", "superres", "backgrounds"] {
+            fs::create_dir(dir.path().join(directory)).unwrap();
+        }
+        let mut r = request();
+        r.mode = BackgroundFitMode::Stretch;
+        for (kind, directory, file, color) in [
+            ("cover", "covers", "original.png", [200, 20, 20, 255]),
+            ("superres", "superres", "efficient.png", [20, 200, 20, 255]),
+            ("superres", "superres", "quality.png", [20, 20, 200, 255]),
+        ] {
+            RgbaImage::from_pixel(40, 20, Rgba(color))
+                .save(dir.path().join(directory).join(file))
+                .unwrap();
+            r.source_kind = kind.into();
+            r.file = file.into();
+            let result = generate(dir.path(), &r).unwrap();
+            let output = image::open(dir.path().join("background-fit").join(result.file))
+                .unwrap()
+                .to_rgba8();
+            assert_eq!(*output.get_pixel(10, 30), Rgba(color));
+            assert!(generate(dir.path(), &r).unwrap().cache_hit);
+        }
+        r.source_kind = "cover".into();
+        assert!(generate(dir.path(), &r).is_err());
+        r.source_kind = "superres".into();
+        for file in [
+            "../covers/original.png",
+            "..\\covers\\original.png",
+            "C:\\quality.png",
+        ] {
+            r.file = file.into();
+            assert!(generate(dir.path(), &r).is_err());
+        }
+        r.source_kind = "unknown".into();
+        r.file = "quality.png".into();
+        assert!(generate(dir.path(), &r).is_err());
     }
 
     #[test]

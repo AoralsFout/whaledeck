@@ -5,22 +5,27 @@
 import { useEffect, useState } from "react";
 import type { BackgroundFitRequest, BackgroundFitResult, BackgroundSource, SidebarBackgroundFit } from "../types";
 import { backgroundFitSize, latestRequestQueue } from "./backgroundFit";
-import { loadAssetUrl } from "./assets";
+import { decodedAssetImage, loadAssetUrl } from "./assets";
+import { sampleSidebarImage } from "./sidebarPaletteImage";
+import type { SidebarImageColors } from "./sidebarPalette";
 import { api } from "./ipc";
 
-type FittedImage = BackgroundFitResult & { url: string };
+type FittedImage = BackgroundFitResult & { url: string; colors: SidebarImageColors | null };
+type FitInput = { request: BackgroundFitRequest; revision: number };
 const inFlight = new Map<string, Promise<FittedImage>>();
 
 /** 同时打开预览和实际侧栏时，共用相同的执行中任务；完成后仍由后端核验内容缓存。 */
-function loadFit(request: BackgroundFitRequest): Promise<FittedImage> {
-  const key = JSON.stringify(request);
+function loadFit(input: FitInput): Promise<FittedImage> {
+  const { request } = input;
+  const key = JSON.stringify(input);
   const existing = inFlight.get(key);
   if (existing) return existing;
   const task = (async () => {
     const result = await api.fitSidebarBackground(request);
     const url = await loadAssetUrl("backgroundFit", result.file);
     if (!url) throw new Error("适配图片加载失败，请重试或更换图片");
-    return { ...result, url };
+    const colors = sampleSidebarImage(decodedAssetImage("backgroundFit", result.file), result, request.padding > 0);
+    return { ...result, url, colors };
   })().finally(() => { inFlight.delete(key); });
   inFlight.set(key, task);
   return task;
@@ -52,37 +57,43 @@ export function useSidebarSize() {
   return size;
 }
 
-/** 有来源即适配，兼容历史关闭记录；换图隔离旧图，同来源缩放保留上一次结果。 */
-export function useSidebarBackgroundFit(source: BackgroundSource | null, config: SidebarBackgroundFit, glass: boolean) {
+/** 有来源即适配；目标解码完成前保留已显示的图片与扩边，迟到请求不能交接。 */
+export function useSidebarBackgroundFit(source: BackgroundSource | null | undefined, config: SidebarBackgroundFit, glass: boolean, revision = 0) {
   const size = useSidebarSize();
   const dimensions = backgroundFitSize(size.cssWidth, size.cssHeight, size.dpr, glass);
-  const identity = source ? JSON.stringify(source) : "";
   const request: BackgroundFitRequest | null = source && dimensions ? { ...source, ...dimensions, mode: config.mode, positionX: config.positionX, positionY: config.positionY } : null;
-  const key = request ? JSON.stringify(request) : "";
-  const [state, setState] = useState<{ identity: string; key: string; image: FittedImage | null; error: string | null }>({ identity: "", key: "", image: null, error: null });
+  const key = request ? JSON.stringify({ request, revision }) : source === undefined ? "pending" : "";
+  const [state, setState] = useState<{ key: string; image: FittedImage | null; error: string | null }>({ key: "", image: null, error: null });
   const [attempt, setAttempt] = useState(0);
-  const [queue, setQueue] = useState<ReturnType<typeof latestRequestQueue<BackgroundFitRequest, FittedImage>> | null>(null);
+  const [queue, setQueue] = useState<ReturnType<typeof latestRequestQueue<FitInput, FittedImage>> | null>(null);
   useEffect(() => {
     const worker = latestRequestQueue(loadFit);
     setQueue(worker);
     return () => worker.close();
   }, []);
   useEffect(() => {
-    if (!key || !queue) return;
+    // 查询档位期间终止旧请求的提交，但保留已显示图像，不能先请求原图。
+    if (key === "pending") return;
+    if (!key) {
+      // 无来源时清除交接历史，之后重新选图不恢复更早的背景。
+      setState((previous) => previous.key || previous.image ? { key: "", image: null, error: null } : previous);
+      return;
+    }
+    if (!queue) return;
     let alive = true;
-    const current = JSON.parse(key) as BackgroundFitRequest;
+    const current = JSON.parse(key) as FitInput;
     const timer = setTimeout(() => {
       void queue.request(current).then((image) => {
-        if (alive && image) setState({ identity, key, image, error: null });
+        if (alive && image) setState({ key, image, error: null });
       }).catch((error: unknown) => {
-        if (alive) setState((previous) => ({ identity, key, image: previous.identity === identity ? previous.image : null, error: String(error) }));
+        if (alive) setState((previous) => ({ key, image: previous.image, error: String(error) }));
       });
     }, 200);
     return () => { alive = false; clearTimeout(timer); queue.clearPending(); };
-  }, [key, identity, queue, attempt]);
+  }, [key, queue, attempt]);
   return {
     size, dimensions,
-    image: source && state.identity === identity ? state.image : null,
+    image: source !== null ? state.image : null,
     error: key && state.key === key ? state.error : null,
     loading: Boolean(key && state.key !== key),
     retry: () => {

@@ -33,6 +33,11 @@
   --bg-dim: 0.55;
   --bg-image: none;
   --sidebar-overlay-opacity: 0.48;
+  --sidebar-blur: 24px;
+  /* 在根作用域解析，侧栏动态配色不能反过来改变图片与整幅遮罩。 */
+  --sidebar-theme-surface: var(--surface);
+  --sidebar-image-primary-rgb: var(--primary-rgb);
+  --sidebar-image-accent-rgb: var(--accent-rgb);
   --window-radius: 12px;
   --app-color-scheme: dark;
   /* 根画布保持默认配色，避免 WebView 为透明区域填充深色底。 */
@@ -491,47 +496,50 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  backdrop-filter: blur(24px) saturate(1.15);
+  backdrop-filter: none;
 }
 /* 背景层不占布局空间，也不降低文字和控件透明度。 */
-.library-sidebar::before, .library-sidebar::after {
+.sidebar-background, .sidebar-background-image, .library-sidebar::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
-.library-sidebar::before {
+.sidebar-background {
   z-index: -2;
+}
+.sidebar-background-image {
   background: var(--sidebar-image, none) center / cover no-repeat;
 }
-.library-sidebar[data-has-background="true"]::before { background-color: var(--bg); }
+.library-sidebar[data-has-background="true"] .sidebar-background-image { background-color: var(--bg); }
 /* 独立图片与底色已覆盖背后画面，不重复对窗口内容做实时背景采样。 */
 .library-sidebar[data-has-background="true"] { backdrop-filter: none; }
 .library-sidebar::after {
   z-index: -1;
-  background: var(--surface);
+  background: var(--sidebar-theme-surface);
   opacity: var(--sidebar-overlay-opacity);
 }
 /* 只模糊独立图片层，扩边后裁切以避免四周出现空白；控件不参与模糊。 */
-.library-sidebar[data-glass="true"]::before {
-  inset: -36px;
-  background-image: var(--sidebar-image, none), linear-gradient(155deg, rgba(var(--primary-rgb), .24), transparent 55%, rgba(var(--accent-rgb), .16));
-  filter: blur(24px) saturate(1.15);
+.library-sidebar[data-glass="true"] .sidebar-background-image {
+  inset: -72px;
+  background-image: var(--sidebar-image, none), linear-gradient(155deg, rgba(var(--sidebar-image-primary-rgb), .24), transparent 55%, rgba(var(--sidebar-image-accent-rgb), .16));
+  filter: blur(var(--sidebar-blur)) saturate(1.15);
+}
+/* 无图片时沿用同一模糊度；已有图片时仍避免重复采样背后画面。 */
+.library-sidebar[data-glass="true"]:not([data-has-background="true"]) {
+  backdrop-filter: blur(var(--sidebar-blur)) saturate(1.15);
 }
 .library-sidebar[data-glass="true"] {
   box-shadow: inset -1px 0 0 color-mix(in srgb, var(--text) 8%, transparent);
 }
-/* 清晰模式同时关闭图片滤镜和后方磨砂；无图片时也直接透出窗口背景。 */
-.library-sidebar[data-clear-glass="true"] { backdrop-filter: none; }
-.library-sidebar[data-clear-glass="true"]::before {
-  inset: 0;
+/* 底色透明度独立于模糊度，满透明时移除所有附加底色与渐变。 */
+.library-sidebar[data-transparent="true"] .sidebar-background-image {
   background-color: transparent;
   background-image: var(--sidebar-image, none);
-  filter: none;
 }
-.library-sidebar[data-clear-glass="true"]::after { opacity: 0; }
+.library-sidebar[data-transparent="true"]::after { opacity: 0; }
 /* 派生图已经按可视区适配；扩边比例与后台画布一致，不能再用 cover 二次裁切。 */
-.library-sidebar[data-background-fitted="true"]::before {
+.library-sidebar .sidebar-background-image[data-background-fitted="true"] {
   left: calc(-1 * var(--sidebar-fit-padding-x));
   right: calc(-1 * var(--sidebar-fit-padding-x));
   top: calc(-1 * var(--sidebar-fit-padding-y));
@@ -561,7 +569,8 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 .sidebar-tool { min-width: 36px; min-height: 36px; }
 .search-clear { display: grid; place-items: center; width: 28px; height: 28px; }
 .sidebar-filters { max-height: 112px; overflow-y: auto; scrollbar-width: thin; }
-.filter-chip { min-height: 28px; min-width: 40px; overflow-wrap: anywhere; text-align: start; }
+.filter-chip { min-height: 28px; min-width: 40px; overflow-wrap: anywhere; text-align: start; background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--border); }
+.filter-chip[aria-pressed="true"] { background: rgba(var(--primary-rgb), .16); color: var(--primary-ink); border-color: rgba(var(--primary-rgb), .4); }
 .library-item { min-height: 56px; background: transparent; border: 1px solid transparent; }
 @media (hover: hover) and (pointer: fine) {
   .filter-chip:enabled:hover { filter: brightness(1.1); }
@@ -569,7 +578,22 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
   :is(.search-clear, .settings-category-remove):enabled:hover { background-color: rgba(var(--primary-rgb), .12); }
 }
 .library-item[aria-current="true"] { background: rgba(var(--primary-rgb), .13); border-color: rgba(var(--primary-rgb), .3); }
+/* 仅控件及交互状态保留独立底色，普通区域直接透出侧栏图片。 */
+.library-sidebar[data-adaptive-color="true"] { color: var(--text); color-scheme: var(--sidebar-color-scheme); }
+.sidebar-controls { flex-shrink: 0; }
+.library-sidebar[data-adaptive-color="true"] .sidebar-controls { padding-bottom: 10px; }
+.library-sidebar[data-adaptive-color="true"] .sidebar-footer { flex-shrink: 0; }
+.library-sidebar[data-adaptive-color="true"] :is(.library-item[aria-current="true"], .filter-chip[aria-pressed="true"]) { background: var(--sidebar-selected); border-color: var(--sidebar-selected-border); }
+.library-sidebar[data-adaptive-color="true"] .btn-primary { background: var(--sidebar-selected); color: var(--primary-ink); border-color: var(--sidebar-selected-border); }
+.library-sidebar[data-adaptive-color="true"] .input::placeholder { color: var(--text-dim); }
+/* 立即交接文字与表面，避免两个合格配色插值时短暂失去对比度。 */
+.library-sidebar[data-adaptive-color="true"] button { transition-property: transform, box-shadow, opacity; }
+@media (hover: hover) and (pointer: fine) {
+  .library-sidebar[data-adaptive-color="true"] .library-item:enabled:hover:not([aria-current="true"]) { background: var(--sidebar-hover); border-color: var(--border); }
+  .library-sidebar[data-adaptive-color="true"] :is(.filter-chip, .btn-primary):enabled:hover { filter: none; }
+}
 .library-item:enabled:active { background: rgba(var(--primary-rgb), .19); }
+.library-sidebar[data-adaptive-color="true"] .library-item:enabled:active { background: var(--sidebar-selected); }
 .library-item:focus-visible { outline-offset: -2px; }
 .mobile-nav-toggle, .mobile-sidebar-back { display: none; }
 
@@ -648,6 +672,8 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 .detail-stats > div { max-width: 100%; }
 .detail-actions > .btn-primary { min-width: 156px; font-variant-numeric: tabular-nums; }
 .detail-actions .btn-icon-glass { min-width: 40px; min-height: 40px; }
+.detail-preset-select { height: 40px; padding: 0 8px; }
+.detail-preset-select option { background: var(--surface); color: var(--text); }
 .action-tooltip {
   position: fixed;
   z-index: 70;
@@ -839,7 +865,7 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 .settings-color-input::-webkit-color-swatch-wrapper { padding: 0; }
 .settings-color-input::-webkit-color-swatch { border: 0; border-radius: 6px; }
 .settings-category-list { align-items: flex-start; }
-.sidebar-options, .sidebar-fit-modes {
+.sidebar-fit-modes {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
@@ -874,6 +900,11 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 }
 .sidebar-control-label { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; color: var(--text); }
 .sidebar-control-label output { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.sidebar-auto-hide { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; font-size: 13px; color: var(--text); cursor: pointer; }
+.sidebar-auto-hide input { appearance: none; position: relative; width: 40px; height: 24px; margin: 0; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); cursor: pointer; }
+.sidebar-auto-hide input::before { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--text-dim); }
+.sidebar-auto-hide input:checked { background: var(--primary); border-color: var(--primary); }
+.sidebar-auto-hide input:checked::before { left: 19px; background: var(--bg); }
 .sidebar-fit-position .sidebar-control-label { margin-bottom: 0; }
 .settings-category-list .chip { padding: 5px 8px 5px 12px; font-size: 13px; }
 .settings-category-remove { display: grid; place-items: center; width: 28px; height: 28px; margin-left: 4px; flex-shrink: 0; }

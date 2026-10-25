@@ -7,12 +7,15 @@
 import { ArrowDownWideNarrow, ArrowLeft, FolderSearch, Plus, Search, Settings, Star, X } from "lucide-react";
 import { formatPlaytime, formatRelative } from "../lib/format";
 import { collectCategories } from "../lib/library";
-import { useAssetUrl } from "../lib/useAssetUrl";
 import { DEFAULT_BACKGROUND_FIT, sidebarBackgroundSource } from "../lib/backgroundFit";
 import { useSidebarBackgroundFit } from "../lib/useSidebarBackgroundFit";
-import { memo, useMemo, type CSSProperties } from "react";
+import { useSidebarPalette } from "../lib/useSidebarPalette";
+import { sidebarBlur } from "../lib/theme";
+import { memo, useMemo } from "react";
+import { SidebarBackground } from "./SidebarBackground";
 import { Brand } from "./Brand";
 import { GameIcon } from "./GameIcon";
+import { useCoverSelection } from "./CoverSelectionProvider";
 import { useLibrary } from "../store/useLibrary";
 import { useLibraryView } from "../store/useLibraryView";
 import type { Game, NavKey, SortKey } from "../types";
@@ -57,8 +60,8 @@ const LibraryItem = memo(function LibraryItem({ game, active, running, onNavigat
           {formatRelative(game.lastPlayedAt)} · {formatPlaytime(game.playtimeSec)}
         </p>
       </div>
-      {running && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#7ee7c8]" title="运行中" aria-label="运行中" />}
-      {game.favorite && <Star size={11} className="shrink-0" style={{ color: "#ffd166" }} fill="currentColor" />}
+      {running && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: "var(--sidebar-running, #7ee7c8)" }} title="运行中" aria-label="运行中" />}
+      {game.favorite && <Star size={11} className="shrink-0" style={{ color: "var(--sidebar-favorite, #ffd166)" }} fill="currentColor" />}
     </button>
   );
 });
@@ -73,7 +76,7 @@ const LibraryList = memo(function LibraryList({ games, emptyLibrary, onNavigate 
   return (
     <div className="mt-2 min-h-0 flex-1 overflow-y-auto px-2 pb-2">
       {games.length === 0 && (
-        <p className="px-3 py-6 text-center text-[11px]" style={{ color: "var(--text-dim)" }}>
+        <p className="sidebar-empty rounded-lg px-3 py-6 text-center text-[11px]" style={{ color: "var(--text-dim)" }}>
           {emptyLibrary ? "还没有游戏，点右上角 + 添加" : "没有匹配的游戏"}
         </p>
       )}
@@ -86,16 +89,15 @@ const LibraryList = memo(function LibraryList({ games, emptyLibrary, onNavigate 
 export const Sidebar = memo(function Sidebar({ onNavigate }: { onNavigate: () => void }) {
   const games = useLibrary((s) => s.games);
   const settings = useLibrary((s) => s.settings);
-  const { visible, selected } = useLibraryView();
-  const clearGlass = settings?.theme.sidebarClearGlass ?? false;
-  const glass = Boolean(settings?.theme.sidebarGlass && !clearGlass);
-  const useCoverBackground = glass || clearGlass;
-  const customBackground = useAssetUrl("background", settings?.theme.sidebarBackgroundFile);
-  const coverBackground = useAssetUrl("cover", useCoverBackground && !settings?.theme.sidebarBackgroundFile ? selected?.coverFile : null);
-  const background = customBackground ?? coverBackground;
-  const fitSource = settings ? sidebarBackgroundSource(settings.theme, selected?.coverFile) : null;
-  const fitted = useSidebarBackgroundFit(fitSource, settings?.theme.sidebarBackgroundFit ?? DEFAULT_BACKGROUND_FIT, glass);
-  const displayedBackground = fitted.image?.url ?? background;
+  const { visible } = useLibraryView();
+  const cover = useCoverSelection();
+  const transparent = (settings?.theme.sidebarTransparency ?? .52) >= 1;
+  const glass = sidebarBlur(settings?.theme.sidebarBlur) > 0;
+  const fitSource = settings ? sidebarBackgroundSource(settings.theme, cover.source) : null;
+  const fitted = useSidebarBackgroundFit(fitSource, settings?.theme.sidebarBackgroundFit ?? DEFAULT_BACKGROUND_FIT, true, fitSource?.sourceKind === "superres" ? cover.revision : 0);
+  // 图片和取景必须一起交接；原图回退会先居中，再跳到后台生成的取景。
+  const displayedBackground = fitted.image?.url;
+  const palette = useSidebarPalette(fitted.image, settings?.theme.sidebarTransparency ?? .52, transparent);
   const nav = useLibrary((s) => s.nav);
   const setNav = useLibrary((s) => s.setNav);
   const query = useLibrary((s) => s.query);
@@ -125,131 +127,125 @@ export const Sidebar = memo(function Sidebar({ onNavigate }: { onNavigate: () =>
     <aside
       id="library-sidebar"
       aria-label="游戏库"
-      className="library-sidebar flex shrink-0 flex-col border-r"
+      className="library-sidebar flex shrink-0 flex-col"
       data-has-background={Boolean(displayedBackground)}
-      data-background-fitted={Boolean(fitted.image)}
       data-glass={glass}
-      data-clear-glass={clearGlass}
+      data-transparent={transparent}
+      data-adaptive-color={Boolean(palette)}
       style={{
-        borderColor: "var(--border)",
-        "--sidebar-image": displayedBackground ? `url(${JSON.stringify(displayedBackground)})` : "none",
-        "--sidebar-fit-padding-x": `${fitted.image ? fitted.image.padding / fitted.image.width * 100 : 0}%`,
-        "--sidebar-fit-padding-y": `${fitted.image ? fitted.image.padding / fitted.image.height * 100 : 0}%`,
-      } as CSSProperties}
+        ...palette,
+      }}
     >
-      <div className="sidebar-brand flex items-center gap-2.5 px-4 pb-4 pt-4" data-tauri-drag-region>
-        <Brand />
-        <button
-          className="btn btn-ghost ml-auto !p-1"
-          onClick={openSettings}
-          title="设置"
-          aria-label="设置"
-        >
-          <Settings size={14} />
+      <SidebarBackground image={fitted.image} mode={settings?.theme.detailBackgroundTransition ?? "blur"} />
+      <div className="sidebar-controls">
+        <div className="sidebar-brand flex items-center gap-2.5 px-4 pb-4 pt-4" data-tauri-drag-region>
+          <Brand />
+          <button
+            className="btn btn-ghost ml-auto !p-1"
+            onClick={openSettings}
+            title="设置"
+            aria-label="设置"
+          >
+            <Settings size={14} />
+          </button>
+        </div>
+
+        <button className="btn btn-ghost mobile-sidebar-back mx-3 mb-3" onClick={onNavigate}>
+          <ArrowLeft size={16} aria-hidden="true" /> 返回详情
         </button>
-      </div>
 
-      <button className="btn btn-ghost mobile-sidebar-back mx-3 mb-3" onClick={onNavigate}>
-        <ArrowLeft size={16} aria-hidden="true" /> 返回详情
-      </button>
-
-      <div className="space-y-2 px-3">
-        <div className="relative">
-          <Search
-            size={13}
-            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2"
-            style={{ color: "var(--text-dim)" }}
-          />
-          <input
-            className="input sidebar-search"
-            aria-label="搜索游戏、分类、标签"
-            placeholder="搜索游戏、分类、标签…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            spellCheck={false}
-          />
-          {query && (
-            <button
-              className="search-clear absolute right-1 top-1/2 -translate-y-1/2 rounded"
-              style={{ color: "var(--text-dim)" }}
-              onClick={() => setQuery("")}
-              aria-label="清空搜索"
-            >
-              <X size={11} />
-            </button>
-          )}
-        </div>
-
-        <div className="sidebar-filters flex flex-wrap gap-1.5 pb-1" role="group" aria-label="筛选游戏">
-          {chips.map((chip) => {
-            const active = isActive(chip);
-            const label =
-              chip.type === "all"
-                ? "全部"
-                : chip.type === "favorites"
-                  ? "收藏"
-                  : chip.type === "hidden"
-                    ? "已隐藏"
-                    : chip.name;
-            return (
-              <button
-                key={chip.type + ("name" in chip ? chip.name : "")}
-                onClick={() => setNav(chip)}
-                className="filter-chip rounded-full px-2.5 py-1 text-[12px]"
-                aria-pressed={active}
-                style={{
-                  background: active ? "rgba(var(--primary-rgb), .16)" : "var(--surface-2)",
-                  color: active ? "var(--primary-ink)" : "var(--text-dim)",
-                  border: `1px solid ${active ? "rgba(var(--primary-rgb), .4)" : "var(--border)"}`,
-                }}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <div className="relative min-w-0 flex-1">
-            <ArrowDownWideNarrow
+        <div className="space-y-2 px-3">
+          <div className="relative">
+            <Search
               size={13}
               className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2"
               style={{ color: "var(--text-dim)" }}
             />
-            <select
-              className="input sidebar-sort cursor-pointer appearance-none"
-              value={sort}
-              onChange={(e) => void setSort(e.target.value as SortKey)}
-              title="排序方式"
-              aria-label="排序方式"
-            >
-              {SORTS.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
+            <input
+              className="input sidebar-search"
+              aria-label="搜索游戏、分类、标签"
+              placeholder="搜索游戏、分类、标签…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              spellCheck={false}
+            />
+            {query && (
+              <button
+                className="search-clear absolute right-1 top-1/2 -translate-y-1/2 rounded"
+                style={{ color: "var(--text-dim)" }}
+                onClick={() => setQuery("")}
+                aria-label="清空搜索"
+              >
+                <X size={11} />
+              </button>
+            )}
           </div>
-          <button className="btn sidebar-tool !px-2" onClick={openScan} title="扫描文件夹" aria-label="扫描文件夹">
-            <FolderSearch size={13} />
-          </button>
-          <button className="btn btn-primary sidebar-tool !px-2" onClick={openNew} title="添加项目" aria-label="添加项目">
-            <Plus size={13} />
-          </button>
+
+          <div className="sidebar-filters flex flex-wrap gap-1.5 pb-1" role="group" aria-label="筛选游戏">
+            {chips.map((chip) => {
+              const active = isActive(chip);
+              const label =
+                chip.type === "all"
+                  ? "全部"
+                  : chip.type === "favorites"
+                    ? "收藏"
+                    : chip.type === "hidden"
+                      ? "已隐藏"
+                      : chip.name;
+              return (
+                <button
+                  key={chip.type + ("name" in chip ? chip.name : "")}
+                  onClick={() => setNav(chip)}
+                  className="filter-chip rounded-full px-2.5 py-1 text-[12px]"
+                  aria-pressed={active}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <div className="relative min-w-0 flex-1">
+              <ArrowDownWideNarrow
+                size={13}
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2"
+                style={{ color: "var(--text-dim)" }}
+              />
+              <select
+                className="input sidebar-sort cursor-pointer appearance-none"
+                value={sort}
+                onChange={(e) => void setSort(e.target.value as SortKey)}
+                title="排序方式"
+                aria-label="排序方式"
+              >
+                {SORTS.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button className="btn sidebar-tool !px-2" onClick={openScan} title="扫描文件夹" aria-label="扫描文件夹">
+              <FolderSearch size={13} />
+            </button>
+            <button className="btn btn-primary sidebar-tool !px-2" onClick={openNew} title="添加项目" aria-label="添加项目">
+              <Plus size={13} />
+            </button>
+          </div>
         </div>
       </div>
 
       <LibraryList games={visible} emptyLibrary={games.length === 0} onNavigate={onNavigate} />
 
       <div
-        className="flex items-center justify-between border-t px-4 py-2.5"
-        style={{ borderColor: "var(--border)" }}
+        className="sidebar-footer flex items-center justify-between px-4 py-2.5"
       >
         <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>
           {visible.length} / {games.length} 个项目
         </span>
         <button
-          className="btn btn-ghost !px-2 !py-1 text-[10px]"
+          className="btn !px-2 !py-1 text-[10px]"
           onClick={openSettings}
         >
           <Settings size={11} />

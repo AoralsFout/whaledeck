@@ -45,7 +45,7 @@ export type SidebarBackgroundFit = {
   positionX: number;
   positionY: number;
 };
-export type BackgroundSource = { sourceKind: "cover" | "background"; file: string };
+export type BackgroundSource = { sourceKind: "cover" | "superres" | "background"; file: string };
 export type BackgroundFitRequest = BackgroundSource & Omit<SidebarBackgroundFit, "enabled"> & {
   width: number; height: number; padding: number;
 };
@@ -62,8 +62,7 @@ export type Theme = {
   backgroundFile: string | null;
   backgroundDim: number;
   sidebarAutoHide: boolean;
-  sidebarGlass: boolean;
-  sidebarClearGlass?: boolean;
+  sidebarBlur?: number;
   sidebarBackgroundFile: string | null;
   sidebarTransparency: number;
   sidebarBackgroundFit?: SidebarBackgroundFit;

@@ -8,10 +8,10 @@ export const DEFAULT_BACKGROUND_FIT: Readonly<SidebarBackgroundFit> = {
   enabled: true, mode: "contain", positionX: 50, positionY: 50,
 };
 
-/** 自定义图片优先，磨砂与清晰背景均可使用当前游戏封面。 */
-export function sidebarBackgroundSource(theme: Theme, cover: string | null | undefined): BackgroundSource | null {
+/** 自定义图片优先；封面沿用共享选择，undefined 保留查询等待态而不误判成无图。 */
+export function sidebarBackgroundSource(theme: Theme, cover: { kind: "cover" | "superres"; file: string } | null | undefined): BackgroundSource | null | undefined {
   if (theme.sidebarBackgroundFile) return { sourceKind: "background", file: theme.sidebarBackgroundFile };
-  return (theme.sidebarGlass || theme.sidebarClearGlass) && cover ? { sourceKind: "cover", file: cover } : null;
+  return cover ? { sourceKind: cover.kind, file: cover.file } : cover;
 }
 
 /** 大窗口与高 DPR 统一按比例降到预算内，不因某一边钳制而改变构图。 */
@@ -20,7 +20,8 @@ export function backgroundFitSize(cssWidth: number, cssHeight: number, dpr: numb
   const scale = Math.min(dpr, 4096 / cssWidth, 4096 / cssHeight, Math.sqrt(4_000_000 / (cssWidth * cssHeight)));
   let width = Math.max(1, Math.floor(cssWidth * scale));
   let height = Math.max(1, Math.floor(cssHeight * scale));
-  let padding = glass ? Math.min(512, Math.round(36 * scale)) : 0;
+  // 按最大磨砂半径预留扩边，拖动模糊度只更新滤镜，不反复生成图片。
+  let padding = glass ? Math.min(512, Math.round(72 * scale)) : 0;
   const outerPixels = (width + 2 * padding) * (height + 2 * padding);
   if (outerPixels > 6_000_000) {
     const reduction = Math.sqrt(6_000_000 / outerPixels);

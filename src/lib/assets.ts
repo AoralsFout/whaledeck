@@ -14,6 +14,11 @@ const MAX_IMAGES = 32;
 const MAX_BYTES = 96 * 1024 * 1024;
 let assetRevision = 0;
 
+/** 只借用有限缓存中的已解码图片用于取色；调用者不持有副本或发起第二次解码。 */
+export function decodedAssetImage(kind: AssetKind, file: string): HTMLImageElement | null {
+  return decoded.get(JSON.stringify([kind, file]))?.image ?? null;
+}
+
 /** 重新生成或删除可复用同名文件；使旧请求失效，防止迟到解码恢复旧缓存。 */
 export function invalidateAssetUrls(kind?: AssetKind, file?: string): void {
   assetRevision += 1;
@@ -43,6 +48,8 @@ export function loadAssetUrl(kind: AssetKind, file: string): Promise<string | nu
     const base = fileUrl(await api.assetPath(kind, file));
     const url = revision ? `${base}${base.includes("?") ? "&" : "?"}v=${revision}` : base;
     image = new Image();
+    // Tauri 资源协议与页面不同源，但提供 CORS 响应；适配图必须允许画布读取。
+    if (kind === "backgroundFit") image.crossOrigin = "anonymous";
     image.src = url;
     await image.decode();
     return url;

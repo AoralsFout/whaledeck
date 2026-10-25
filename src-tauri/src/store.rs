@@ -469,7 +469,7 @@ mod tests {
         assert_eq!(default.theme.preset, "whale");
         assert_eq!(default.sort, "recent");
         assert!(default.theme.sidebar_auto_hide);
-        assert!(!default.theme.sidebar_glass);
+        assert_eq!(default.theme.sidebar_blur, 24);
         assert_eq!(
             default.theme.detail_background_transition,
             crate::models::DetailBackgroundTransition::Blur
@@ -482,7 +482,7 @@ mod tests {
         let mut s = default.clone();
         s.theme.primary = "#ff0000".into();
         s.theme.sidebar_auto_hide = false;
-        s.theme.sidebar_glass = true;
+        s.theme.sidebar_blur = 32;
         s.theme.sidebar_background_file = Some("sidebar.png".into());
         s.theme.sidebar_transparency = 0.75;
         s.theme.detail_background_transition = crate::models::DetailBackgroundTransition::SlideUp;
@@ -492,7 +492,7 @@ mod tests {
         let loaded = store.load_settings();
         assert_eq!(loaded.theme.primary, "#ff0000");
         assert!(!loaded.theme.sidebar_auto_hide);
-        assert!(loaded.theme.sidebar_glass);
+        assert_eq!(loaded.theme.sidebar_blur, 32);
         assert_eq!(
             loaded.theme.sidebar_background_file,
             s.theme.sidebar_background_file

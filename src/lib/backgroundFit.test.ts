@@ -5,7 +5,7 @@ import type { Theme } from "../types";
 
 describe("侧栏背景适配", () => {
   it("按实际区域和 DPR 生成，极端尺寸仍保留比例并满足后台预算", () => {
-    expect(backgroundFitSize(258, 820, 2, true)).toEqual({ width: 516, height: 1640, padding: 72 });
+    expect(backgroundFitSize(258, 820, 2, true)).toEqual({ width: 516, height: 1640, padding: 144 });
     for (const [w, h, dpr] of [[258, 820, 8], [375, 812, 1.5], [8000, 3000, 3], [1, 90000, 100], [2000, 2000, 10]]) {
       const result = backgroundFitSize(w, h, dpr, true)!;
       expect(result.width).toBeLessThanOrEqual(4096);
@@ -18,19 +18,35 @@ describe("侧栏背景适配", () => {
     expect(backgroundFitSize(258, 820, 1, false)?.padding).toBe(0);
   });
 
-  it("沿用自定义图优先、磨砂封面回退与无图规则", () => {
-    const theme = { sidebarBackgroundFile: "custom.png", sidebarGlass: true } as Theme;
-    expect(sidebarBackgroundSource(theme, "cover.jpg")).toEqual({ sourceKind: "background", file: "custom.png" });
+  it("沿用自定义图优先、封面回退与无图规则", () => {
+    const theme = { sidebarBackgroundFile: "custom.png", sidebarBlur: 24 } as Theme;
+    const cover = { kind: "cover" as const, file: "cover.jpg" };
+    expect(sidebarBackgroundSource(theme, cover)).toEqual({ sourceKind: "background", file: "custom.png" });
     theme.sidebarBackgroundFile = null;
-    expect(sidebarBackgroundSource(theme, "cover.jpg")).toEqual({ sourceKind: "cover", file: "cover.jpg" });
+    expect(sidebarBackgroundSource(theme, cover)).toEqual({ sourceKind: "cover", file: "cover.jpg" });
     expect(sidebarBackgroundSource(theme, null)).toBeNull();
-    theme.sidebarGlass = false;
-    expect(sidebarBackgroundSource(theme, "cover.jpg")).toBeNull();
-    theme.sidebarClearGlass = true;
-    expect(sidebarBackgroundSource(theme, "cover.jpg")).toEqual({ sourceKind: "cover", file: "cover.jpg" });
+    theme.sidebarBlur = 0;
+    expect(sidebarBackgroundSource(theme, cover)).toEqual({ sourceKind: "cover", file: "cover.jpg" });
     expect(sidebarBackgroundSource(theme, null)).toBeNull();
     theme.sidebarBackgroundFile = "custom.png";
-    expect(sidebarBackgroundSource(theme, "cover.jpg")).toEqual({ sourceKind: "background", file: "custom.png" });
+    expect(sidebarBackgroundSource(theme, cover)).toEqual({ sourceKind: "background", file: "custom.png" });
+  });
+
+  it("磨砂与清晰背景沿用两档超分选择，查询待定不等同于无图", () => {
+    for (const blur of [0, 24, 48]) {
+      const theme = { sidebarBackgroundFile: null, sidebarBlur: blur } as Theme;
+      for (const preset of ["efficient", "quality"]) {
+        expect(sidebarBackgroundSource(theme, { kind: "superres", file: `${preset}.png` }))
+          .toEqual({ sourceKind: "superres", file: `${preset}.png` });
+      }
+      expect(sidebarBackgroundSource(theme, undefined)).toBeUndefined();
+      expect(sidebarBackgroundSource(theme, null)).toBeNull();
+      theme.sidebarBackgroundFile = "custom.png";
+      expect(sidebarBackgroundSource(theme, undefined)).toEqual({ sourceKind: "background", file: "custom.png" });
+      expect(sidebarBackgroundSource(theme, { kind: "superres", file: "quality.png" })).toEqual({ sourceKind: "background", file: "custom.png" });
+      theme.sidebarBackgroundFile = null;
+      expect(sidebarBackgroundSource(theme, undefined)).toBeUndefined();
+    }
   });
 
   it("连续请求只执行当前项和最后一项，取消清除未执行项", async () => {

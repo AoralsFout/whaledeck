@@ -79,10 +79,8 @@ pub struct Theme {
     pub background_dim: f32,
     #[serde(default = "default_sidebar_auto_hide")]
     pub sidebar_auto_hide: bool,
-    #[serde(default)]
-    pub sidebar_glass: bool,
-    #[serde(default)]
-    pub sidebar_clear_glass: bool,
+    #[serde(default = "default_sidebar_blur")]
+    pub sidebar_blur: u8,
     #[serde(default)]
     pub sidebar_background_file: Option<String>,
     #[serde(default = "default_sidebar_transparency")]
@@ -155,6 +153,10 @@ fn default_sidebar_transparency() -> f32 {
     0.52
 }
 
+fn default_sidebar_blur() -> u8 {
+    24
+}
+
 fn default_sidebar_auto_hide() -> bool {
     true
 }
@@ -169,8 +171,7 @@ impl Default for Theme {
             background_file: None,
             background_dim: 0.55,
             sidebar_auto_hide: default_sidebar_auto_hide(),
-            sidebar_glass: false,
-            sidebar_clear_glass: false,
+            sidebar_blur: default_sidebar_blur(),
             sidebar_background_file: None,
             sidebar_transparency: default_sidebar_transparency(),
             sidebar_background_fit: SidebarBackgroundFit::default(),
@@ -183,7 +184,7 @@ impl Default for Theme {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_theme")]
     pub theme: Theme,
     #[serde(default = "default_sort")]
     pub sort: String,
@@ -191,6 +192,30 @@ pub struct Settings {
     pub categories: Vec<String>,
     #[serde(default)]
     pub close_behavior: Option<CloseBehavior>,
+}
+
+/// 所有设置读取边界统一迁移旧效果开关，新序列化只保留滑块值。
+fn deserialize_theme<'de, D>(deserializer: D) -> Result<Theme, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct LegacyTheme {
+        #[serde(flatten)]
+        theme: Theme,
+        sidebar_glass: Option<bool>,
+        sidebar_clear_glass: Option<bool>,
+    }
+    let legacy = LegacyTheme::deserialize(deserializer)?;
+    let mut theme = legacy.theme;
+    if legacy.sidebar_clear_glass == Some(true) {
+        theme.sidebar_blur = 0;
+        theme.sidebar_transparency = 1.0;
+    } else if legacy.sidebar_glass == Some(false) {
+        theme.sidebar_blur = 0;
+    }
+    Ok(theme)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -316,6 +341,59 @@ pub fn now_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_sidebar_effects_migrate_once_and_preserve_other_preferences() {
+        for (glass, clear, expected_blur, expected_transparency) in [
+            (false, false, 0, 0.52),
+            (true, false, 32, 0.52),
+            (false, true, 0, 1.0),
+            (true, true, 0, 1.0),
+        ] {
+            let mut legacy = serde_json::to_value(Settings::default()).unwrap();
+            legacy["theme"]["sidebarGlass"] = serde_json::json!(glass);
+            legacy["theme"]["sidebarClearGlass"] = serde_json::json!(clear);
+            legacy["theme"]["sidebarBlur"] = serde_json::json!(32);
+            legacy["theme"]["sidebarBackgroundFile"] = serde_json::json!("saved.png");
+            legacy["categories"] = serde_json::json!(["保留分类"]);
+            let migrated: Settings = serde_json::from_value(legacy).unwrap();
+            assert_eq!(migrated.theme.sidebar_blur, expected_blur);
+            assert_eq!(migrated.theme.sidebar_transparency, expected_transparency);
+            assert!(migrated.theme.sidebar_auto_hide);
+            assert_eq!(
+                migrated.theme.sidebar_background_file.as_deref(),
+                Some("saved.png")
+            );
+            assert_eq!(migrated.categories, vec!["保留分类"]);
+            let mut saved = serde_json::to_value(migrated).unwrap();
+            assert!(saved["theme"].get("sidebarGlass").is_none());
+            assert!(saved["theme"].get("sidebarClearGlass").is_none());
+            saved["theme"]["sidebarBlur"] = serde_json::json!(48);
+            let restored: Settings = serde_json::from_value(saved).unwrap();
+            assert_eq!(restored.theme.sidebar_blur, 48);
+        }
+    }
+
+    #[test]
+    fn sidebar_blur_preserves_legacy_settings_and_saved_preference() {
+        let mut legacy = serde_json::to_value(Settings::default()).unwrap();
+        legacy["theme"]
+            .as_object_mut()
+            .unwrap()
+            .remove("sidebarBlur");
+        legacy["categories"] = serde_json::json!(["保留分类"]);
+        let restored: Settings = serde_json::from_value(legacy.clone()).unwrap();
+        assert_eq!(restored.theme.sidebar_blur, 24);
+        assert_eq!(restored.categories, vec!["保留分类"]);
+        for blur in [0, 24, 48] {
+            legacy["theme"]["sidebarBlur"] = serde_json::json!(blur);
+            let restored: Settings = serde_json::from_value(legacy.clone()).unwrap();
+            assert_eq!(
+                serde_json::to_value(restored).unwrap()["theme"]["sidebarBlur"],
+                blur
+            );
+        }
+    }
 
     #[test]
     fn transition_preferences_accept_legacy_unknown_and_every_choice() {

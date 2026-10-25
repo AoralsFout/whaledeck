@@ -6,6 +6,13 @@
  */
 import type { Theme, ThemePreset } from "../types";
 
+export const MAX_SIDEBAR_BLUR = 48;
+
+/** 旧设置沿用原磨砂强度，外部导入的异常数值不能使 CSS 滤镜失效。 */
+export function sidebarBlur(value: Theme["sidebarBlur"]): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.round(Math.min(MAX_SIDEBAR_BLUR, Math.max(0, value))) : 24;
+}
+
 export const PRESETS: Record<
   ThemePreset,
   { name: string; primary: string; accent: string; blurb: string }
@@ -50,6 +57,7 @@ export function applyTheme(theme: Theme): void {
   root.style.setProperty("--bg-dim", String(theme.backgroundDim));
   const transparency = theme.sidebarTransparency ?? 0.52;
   root.style.setProperty("--sidebar-overlay-opacity", String(1 - Math.min(1, Math.max(0, transparency))));
+  root.style.setProperty("--sidebar-blur", `${sidebarBlur(theme.sidebarBlur)}px`);
 }
 
 export function presetToTheme(preset: ThemePreset, base: Theme): Theme {
