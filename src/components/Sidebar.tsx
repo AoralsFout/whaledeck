@@ -7,7 +7,6 @@
 import { ArrowDownWideNarrow, ArrowLeft, FolderSearch, Plus, Search, Settings, Star, X } from "lucide-react";
 import { formatPlaytime, formatRelative } from "../lib/format";
 import { collectCategories } from "../lib/library";
-import { useAssetUrl } from "../lib/useAssetUrl";
 import { DEFAULT_BACKGROUND_FIT, sidebarBackgroundSource } from "../lib/backgroundFit";
 import { useSidebarBackgroundFit } from "../lib/useSidebarBackgroundFit";
 import { memo, useMemo, type CSSProperties } from "react";
@@ -89,13 +88,10 @@ export const Sidebar = memo(function Sidebar({ onNavigate }: { onNavigate: () =>
   const { visible, selected } = useLibraryView();
   const clearGlass = settings?.theme.sidebarClearGlass ?? false;
   const glass = Boolean(settings?.theme.sidebarGlass && !clearGlass);
-  const useCoverBackground = glass || clearGlass;
-  const customBackground = useAssetUrl("background", settings?.theme.sidebarBackgroundFile);
-  const coverBackground = useAssetUrl("cover", useCoverBackground && !settings?.theme.sidebarBackgroundFile ? selected?.coverFile : null);
-  const background = customBackground ?? coverBackground;
   const fitSource = settings ? sidebarBackgroundSource(settings.theme, selected?.coverFile) : null;
   const fitted = useSidebarBackgroundFit(fitSource, settings?.theme.sidebarBackgroundFit ?? DEFAULT_BACKGROUND_FIT, glass);
-  const displayedBackground = fitted.image?.url ?? background;
+  // 图片和取景必须一起交接；原图回退会先居中，再跳到后台生成的取景。
+  const displayedBackground = fitted.image?.url;
   const nav = useLibrary((s) => s.nav);
   const setNav = useLibrary((s) => s.setNav);
   const query = useLibrary((s) => s.query);

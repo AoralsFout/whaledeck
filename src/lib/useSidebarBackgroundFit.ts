@@ -52,14 +52,13 @@ export function useSidebarSize() {
   return size;
 }
 
-/** 有来源即适配，兼容历史关闭记录；换图隔离旧图，同来源缩放保留上一次结果。 */
+/** 有来源即适配；目标解码完成前保留已显示的图片与扩边，迟到请求不能交接。 */
 export function useSidebarBackgroundFit(source: BackgroundSource | null, config: SidebarBackgroundFit, glass: boolean) {
   const size = useSidebarSize();
   const dimensions = backgroundFitSize(size.cssWidth, size.cssHeight, size.dpr, glass);
-  const identity = source ? JSON.stringify(source) : "";
   const request: BackgroundFitRequest | null = source && dimensions ? { ...source, ...dimensions, mode: config.mode, positionX: config.positionX, positionY: config.positionY } : null;
   const key = request ? JSON.stringify(request) : "";
-  const [state, setState] = useState<{ identity: string; key: string; image: FittedImage | null; error: string | null }>({ identity: "", key: "", image: null, error: null });
+  const [state, setState] = useState<{ key: string; image: FittedImage | null; error: string | null }>({ key: "", image: null, error: null });
   const [attempt, setAttempt] = useState(0);
   const [queue, setQueue] = useState<ReturnType<typeof latestRequestQueue<BackgroundFitRequest, FittedImage>> | null>(null);
   useEffect(() => {
@@ -68,21 +67,26 @@ export function useSidebarBackgroundFit(source: BackgroundSource | null, config:
     return () => worker.close();
   }, []);
   useEffect(() => {
-    if (!key || !queue) return;
+    if (!key) {
+      // 无来源时清除交接历史，之后重新选图不恢复更早的背景。
+      setState((previous) => previous.key || previous.image ? { key: "", image: null, error: null } : previous);
+      return;
+    }
+    if (!queue) return;
     let alive = true;
     const current = JSON.parse(key) as BackgroundFitRequest;
     const timer = setTimeout(() => {
       void queue.request(current).then((image) => {
-        if (alive && image) setState({ identity, key, image, error: null });
+        if (alive && image) setState({ key, image, error: null });
       }).catch((error: unknown) => {
-        if (alive) setState((previous) => ({ identity, key, image: previous.identity === identity ? previous.image : null, error: String(error) }));
+        if (alive) setState((previous) => ({ key, image: previous.image, error: String(error) }));
       });
     }, 200);
     return () => { alive = false; clearTimeout(timer); queue.clearPending(); };
-  }, [key, identity, queue, attempt]);
+  }, [key, queue, attempt]);
   return {
     size, dimensions,
-    image: source && state.identity === identity ? state.image : null,
+    image: source ? state.image : null,
     error: key && state.key === key ? state.error : null,
     loading: Boolean(key && state.key !== key),
     retry: () => {
