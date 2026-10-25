@@ -1,5 +1,5 @@
 /**
- * @file 无边框窗口的拖动区与最小化/最大化/关闭控制。
+ * @file 无边框窗口的拖动区、封面快捷入口与最小化/最大化/关闭控制。
  *
  * 非 Tauri（浏览器预览）不调用原生 API；最大化/全屏时同步 data-window-expanded。
  * 对应文档：docs/界面与交互.md §2.1、docs/前端实现.md §4.4。
@@ -9,12 +9,14 @@ import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Copy, Minus, Square, X } from "lucide-react";
 import { useLibrary } from "../store/useLibrary";
+import type { CoverQuickEditor } from "../store/coverQuickEdit";
+import { CoverFramingControl } from "./CoverFramingControl";
 
 // 浏览器预览不调用原生窗口 API。
 const appWindow = isTauri() ? getCurrentWindow() : null;
 
-/** 窗口控制条；只在 Tauri 环境可用，浏览器预览显示为禁用。 */
-export function WindowChrome() {
+/** 窗口控制条与封面快捷入口；原生窗口按钮仅在 Tauri 环境启用。 */
+export function WindowChrome({ coverEditor, coverDisabled = true }: { coverEditor?: CoverQuickEditor; coverDisabled?: boolean }) {
   const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
@@ -62,37 +64,40 @@ export function WindowChrome() {
     <>
       {/* 透明拖动区不占布局空间，双击由 Tauri 切换最大化。 */}
       <div className="window-drag-region" data-tauri-drag-region aria-hidden="true" />
-      <div className="window-controls" role="group" aria-label="窗口控制">
-        <button
-          type="button"
-          className="window-control"
-          aria-label="最小化"
-          title="最小化"
-          disabled={!appWindow}
-          onClick={() => appWindow && void run(() => appWindow.minimize())}
-        >
-          <Minus size={15} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="window-control"
-          aria-label={maximized ? "还原窗口" : "最大化"}
-          title={maximized ? "还原窗口" : "最大化"}
-          disabled={!appWindow}
-          onClick={() => appWindow && void run(() => appWindow.toggleMaximize())}
-        >
-          {maximized ? <Copy size={13} aria-hidden="true" /> : <Square size={13} aria-hidden="true" />}
-        </button>
-        <button
-          type="button"
-          className="window-control window-control-close"
-          aria-label="关闭窗口"
-          title="关闭窗口"
-          disabled={!appWindow}
-          onClick={() => appWindow && void run(() => appWindow.close())}
-        >
-          <X size={16} aria-hidden="true" />
-        </button>
+      <div className="window-chrome-actions">
+        <CoverFramingControl editor={coverEditor} disabled={coverDisabled} />
+        <div className="window-controls" role="group" aria-label="窗口控制">
+          <button
+            type="button"
+            className="window-control"
+            aria-label="最小化"
+            title="最小化"
+            disabled={!appWindow}
+            onClick={() => appWindow && void run(() => appWindow.minimize())}
+          >
+            <Minus size={15} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="window-control"
+            aria-label={maximized ? "还原窗口" : "最大化"}
+            title={maximized ? "还原窗口" : "最大化"}
+            disabled={!appWindow}
+            onClick={() => appWindow && void run(() => appWindow.toggleMaximize())}
+          >
+            {maximized ? <Copy size={13} aria-hidden="true" /> : <Square size={13} aria-hidden="true" />}
+          </button>
+          <button
+            type="button"
+            className="window-control window-control-close"
+            aria-label="关闭窗口"
+            title="关闭窗口"
+            disabled={!appWindow}
+            onClick={() => appWindow && void run(() => appWindow.close())}
+          >
+            <X size={16} aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </>
   );

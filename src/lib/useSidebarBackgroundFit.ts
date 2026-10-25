@@ -52,12 +52,12 @@ export function useSidebarSize() {
   return size;
 }
 
-/** 禁用或换图后立即隔离旧图；同来源缩放期间保留上一次结果，避免闪白。 */
+/** 有来源即适配，兼容历史关闭记录；换图隔离旧图，同来源缩放保留上一次结果。 */
 export function useSidebarBackgroundFit(source: BackgroundSource | null, config: SidebarBackgroundFit, glass: boolean) {
   const size = useSidebarSize();
   const dimensions = backgroundFitSize(size.cssWidth, size.cssHeight, size.dpr, glass);
   const identity = source ? JSON.stringify(source) : "";
-  const request: BackgroundFitRequest | null = source && config.enabled && dimensions ? { ...source, ...dimensions, mode: config.mode, positionX: config.positionX, positionY: config.positionY } : null;
+  const request: BackgroundFitRequest | null = source && dimensions ? { ...source, ...dimensions, mode: config.mode, positionX: config.positionX, positionY: config.positionY } : null;
   const key = request ? JSON.stringify(request) : "";
   const [state, setState] = useState<{ identity: string; key: string; image: FittedImage | null; error: string | null }>({ identity: "", key: "", image: null, error: null });
   const [attempt, setAttempt] = useState(0);
@@ -82,7 +82,7 @@ export function useSidebarBackgroundFit(source: BackgroundSource | null, config:
   }, [key, identity, queue, attempt]);
   return {
     size, dimensions,
-    image: config.enabled && state.identity === identity ? state.image : null,
+    image: source && state.identity === identity ? state.image : null,
     error: key && state.key === key ? state.error : null,
     loading: Boolean(key && state.key !== key),
     retry: () => {

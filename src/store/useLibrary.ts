@@ -49,6 +49,7 @@ type LibraryState = {
   scanOpen: boolean;
   metaOpen: boolean;
   toast: Toast | null;
+  superresProgress: string | null;
 
   init: () => Promise<void>;
   setQuery: (q: string) => void;
@@ -76,6 +77,7 @@ type LibraryState = {
   closeMeta: () => void;
   showToast: (kind: ToastKind, text: string) => void;
   hideToast: () => void;
+  setSuperresProgress: (text: string | null) => void;
   handleStopped: (p: StoppedPayload) => void;
   handleLaunchFailed: (message: string) => void;
 };
@@ -163,6 +165,7 @@ export const useLibrary = create<LibraryState>((set, get) => {
     scanOpen: false,
     metaOpen: false,
     toast: null,
+    superresProgress: null,
 
     init: async () => {
       try {
@@ -353,6 +356,8 @@ export const useLibrary = create<LibraryState>((set, get) => {
       if (toastTimer) clearTimeout(toastTimer);
       set({ toast: null });
     },
+    // 进度提示跟随详情的任务生命周期，不参与普通通知的自动关闭计时。
+    setSuperresProgress: (text) => set({ superresProgress: text }),
 
     handleStopped: (p) => {
       set((s) => ({

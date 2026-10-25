@@ -2,7 +2,8 @@
  * @file 侧栏背景适配草稿：取景预览、确认保存与取消；不即时改变实际侧栏。
  * 对应文档：docs/界面与交互.md §4.3、docs/前端实现.md §4.2.1。
  */
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { ImageOff, RotateCcw } from "lucide-react";
 import { DEFAULT_BACKGROUND_FIT, sidebarBackgroundSource } from "../lib/backgroundFit";
 import { useSidebarBackgroundFit } from "../lib/useSidebarBackgroundFit";
 import { useAssetUrl } from "../lib/useAssetUrl";
@@ -15,9 +16,9 @@ const MODES = [
   { value: "stretch", label: "拉伸铺满", hint: "保留全图并铺满，人物可能变形" },
 ] as const;
 
-/** 本组件只在外观页挂载，关闭或切页会丢弃尚未确认的草稿。 */
-export function SidebarBackgroundSettings({ theme }: { theme: Theme }) {
-  const saved = theme.sidebarBackgroundFit ?? DEFAULT_BACKGROUND_FIT;
+/** 只在左侧栏页挂载；历史适配开关按常开处理，关闭或切页丢弃草稿。 */
+export function SidebarBackgroundSettings({ theme, imageActions }: { theme: Theme; imageActions: ReactNode }) {
+  const saved = { ...(theme.sidebarBackgroundFit ?? DEFAULT_BACKGROUND_FIT), enabled: true };
   const savedKey = JSON.stringify(saved);
   const [draft, setDraft] = useState<SidebarBackgroundFit>({ ...saved });
   const [saving, setSaving] = useState(false);
@@ -29,9 +30,11 @@ export function SidebarBackgroundSettings({ theme }: { theme: Theme }) {
   const fitted = useSidebarBackgroundFit(source, draft, Boolean(theme.sidebarGlass && !theme.sidebarClearGlass));
   useEffect(() => { setDraft(JSON.parse(savedKey) as SidebarBackgroundFit); }, [savedKey]);
   const dirty = JSON.stringify(draft) !== savedKey;
-  const image = draft.enabled ? fitted.image?.url ?? original : original;
-  const paddingX = fitted.image && draft.enabled ? fitted.image.padding / fitted.image.width * 100 : 0;
-  const paddingY = fitted.image && draft.enabled ? fitted.image.padding / fitted.image.height * 100 : 0;
+  // 请求尚未完成时用原图展示当前草稿，避免新参数套用到旧适配结果。
+  const readyImage = !fitted.loading && !fitted.error ? fitted.image : null;
+  const image = readyImage?.url ?? original;
+  const paddingX = readyImage ? readyImage.padding / readyImage.width * 100 : 0;
+  const paddingY = readyImage ? readyImage.padding / readyImage.height * 100 : 0;
   const patch = (value: Partial<SidebarBackgroundFit>) => setDraft((previous) => ({ ...previous, ...value }));
   const confirm = async () => {
     setSaving(true);
@@ -39,49 +42,50 @@ export function SidebarBackgroundSettings({ theme }: { theme: Theme }) {
     finally { setSaving(false); }
   };
   return (
-    <fieldset className="sidebar-fit-settings" disabled={saving}>
-      <legend className="label">背景适配</legend>
-      <label className="sidebar-option">
-        <span><strong>侧栏背景适配</strong><span className="hint">调整分辨率与取景，预览后点应用保存。</span></span>
-        <input aria-label="侧栏背景适配" type="checkbox" checked={draft.enabled} onChange={(event) => patch({ enabled: event.target.checked })} />
-      </label>
-      {draft.enabled && <>
-        <div className="sidebar-fit-modes" role="group" aria-label="背景适配方式">
-          {MODES.map((mode) => <button key={mode.value} className="btn" aria-pressed={draft.mode === mode.value} onClick={() => patch({ mode: mode.value })}>{mode.label}</button>)}
-        </div>
-        <p className="hint m-0">{MODES.find((mode) => mode.value === draft.mode)?.hint}</p>
-        {draft.mode === "cover" && <div className="sidebar-fit-position">
-          <label className="label" htmlFor="sidebar-fit-x">水平取景（{draft.positionX}%）</label>
-          <input id="sidebar-fit-x" type="range" min="0" max="100" value={draft.positionX} onChange={(event) => patch({ positionX: Number(event.target.value) })} />
-          <label className="label" htmlFor="sidebar-fit-y">垂直取景（{draft.positionY}%）</label>
-          <input id="sidebar-fit-y" type="range" min="0" max="100" value={draft.positionY} onChange={(event) => patch({ positionY: Number(event.target.value) })} />
-          <button className="btn btn-ghost" onClick={() => patch({ positionX: 50, positionY: 50 })}>恢复居中</button>
-        </div>}
-        <div className="sidebar-fit-preview-row">
-          <div className="sidebar-fit-preview" role="img" aria-label="侧栏背景适配预览" style={{ aspectRatio: `${fitted.size.cssWidth} / ${fitted.size.cssHeight}` }}>
+    <fieldset className="sidebar-fit-settings" disabled={saving} aria-label="背景取景编辑">
+      <div className="sidebar-fit-modes" role="group" aria-label="背景适配方式">
+        {MODES.map((mode) => <button type="button" key={mode.value} className="sidebar-segment" disabled={!source} aria-pressed={draft.mode === mode.value} onClick={() => patch({ mode: mode.value })}>{mode.label}</button>)}
+      </div>
+      <div className="sidebar-fit-preview-row">
+        <div className="sidebar-fit-preview-stage">
+          <div className="sidebar-fit-preview" role="img" aria-label="侧栏背景适配预览" style={{ aspectRatio: `${fitted.size.cssWidth} / ${fitted.size.cssHeight}`, "--sidebar-preview-ratio": fitted.size.cssWidth / fitted.size.cssHeight } as CSSProperties}>
             {image && <div className="sidebar-fit-preview-art" style={{
               backgroundImage: `url(${JSON.stringify(image)})`,
-              backgroundSize: fitted.image ? "100% 100%" : draft.mode === "stretch" ? "100% 100%" : draft.mode,
+              backgroundSize: readyImage ? "100% 100%" : draft.mode === "stretch" ? "100% 100%" : draft.mode,
               backgroundPosition: `${draft.positionX}% ${draft.positionY}%`,
               left: `${-paddingX}%`, right: `${-paddingX}%`, top: `${-paddingY}%`, bottom: `${-paddingY}%`,
             } as CSSProperties} />}
+            {!image && <div className="sidebar-fit-placeholder"><ImageOff size={24} aria-hidden="true" /><span>{source ? "加载中…" : "暂无背景"}</span></div>}
           </div>
-          <div className="sidebar-fit-info hint">
-            <p className="m-0">{dirty ? "取景预览，尚未应用" : "当前取景预览"}</p>
-            {fitted.image && <p>原图 {fitted.image.sourceWidth} × {fitted.image.sourceHeight}</p>}
-            <p>侧栏 {fitted.size.cssWidth} × {fitted.size.cssHeight} CSS 像素</p>
-            {fitted.dimensions && <p>生成 {fitted.dimensions.width} × {fitted.dimensions.height} 像素</p>}
-            <p>预览清晰展示取景；磨砂和透明度以实际侧栏为准。</p>
-            {!source && <p>请选择侧栏背景，或开启磨砂使用当前游戏封面。</p>}
-            {fitted.loading && <p role="status">正在生成预览…</p>}
-            {fitted.error && <><p role="alert">{fitted.error}</p><button className="btn" onClick={fitted.retry}>重试生成</button></>}
-          </div>
+          <div className="sidebar-fit-image-actions">{imageActions}</div>
         </div>
-      </>}
-      <div className="flex flex-wrap items-center gap-2">
-        <button className="btn btn-primary" disabled={!dirty || saving || Boolean(draft.enabled && source && (fitted.loading || fitted.error))} onClick={() => void confirm()}>{saving ? "正在应用…" : "应用适配"}</button>
-        <button className="btn" disabled={!dirty || saving} onClick={() => setDraft({ ...saved })}>取消修改</button>
-        <span className="hint" role="status">{dirty ? "有未应用的修改" : "已保存"}</span>
+        <div className="sidebar-fit-controls">
+          <div className="sidebar-fit-caption">
+            <strong>{source ? "图像调整" : "添加一张背景"}</strong>
+            <p className="hint m-0">{source ? MODES.find((mode) => mode.value === draft.mode)?.hint : "选择左侧背景，或开启背景效果使用游戏封面。"}</p>
+          </div>
+          {draft.mode === "cover" && <fieldset className="sidebar-fit-position" disabled={!source}>
+            <label className="sidebar-control-label" htmlFor="sidebar-fit-x"><span>水平位置</span><output htmlFor="sidebar-fit-x">{draft.positionX}%</output></label>
+            <input id="sidebar-fit-x" type="range" min="0" max="100" value={draft.positionX} onChange={(event) => patch({ positionX: Number(event.target.value) })} />
+            <label className="sidebar-control-label" htmlFor="sidebar-fit-y"><span>垂直位置</span><output htmlFor="sidebar-fit-y">{draft.positionY}%</output></label>
+            <input id="sidebar-fit-y" type="range" min="0" max="100" value={draft.positionY} onChange={(event) => patch({ positionY: Number(event.target.value) })} />
+            <button type="button" className="btn btn-ghost" disabled={draft.positionX === 50 && draft.positionY === 50} onClick={() => patch({ positionX: 50, positionY: 50 })}><RotateCcw size={13} aria-hidden="true" />居中</button>
+          </fieldset>}
+          {source && <p className="hint m-0">预览仅展示取景，应用后生效。</p>}
+          {fitted.loading && <p className="hint m-0" role="status">正在生成预览…</p>}
+          {fitted.error && <div className="sidebar-fit-error"><p className="hint m-0" role="alert">{fitted.error}</p><button type="button" className="btn" onClick={fitted.retry}>重试生成</button></div>}
+          {source && <details className="sidebar-fit-info hint">
+            <summary>图像信息</summary>
+            {readyImage && <p>原图 {readyImage.sourceWidth} × {readyImage.sourceHeight}</p>}
+            <p>侧栏 {fitted.size.cssWidth} × {fitted.size.cssHeight}</p>
+            {fitted.dimensions && <p>适配 {fitted.dimensions.width} × {fitted.dimensions.height} 像素</p>}
+          </details>}
+        </div>
+      </div>
+      <div className="sidebar-fit-actions">
+        <span className="hint" role="status">{!source ? "等待选择背景" : dirty ? "未应用" : "已保存"}</span>
+        <button type="button" className="btn btn-ghost" disabled={!dirty || saving} onClick={() => setDraft({ ...saved })}>还原</button>
+        <button type="button" className="btn btn-primary" disabled={!source || !image || !dirty || saving || fitted.loading || Boolean(fitted.error)} onClick={() => void confirm()}>{saving ? "正在应用…" : "应用取景"}</button>
       </div>
     </fieldset>
   );

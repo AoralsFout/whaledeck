@@ -36,6 +36,8 @@ export type Game = {
 };
 
 export type ThemePreset = "whale" | "abyss" | "sakura" | "mono";
+export type DetailBackgroundTransition = "none" | "blur" | "crossfade" | "slideRight" | "slideLeft" | "slideDown" | "slideUp";
+export type DetailTextTransition = "none" | "fade" | "stagger" | "scramble";
 
 export type SidebarBackgroundFit = {
   enabled: boolean;
@@ -65,6 +67,8 @@ export type Theme = {
   sidebarBackgroundFile: string | null;
   sidebarTransparency: number;
   sidebarBackgroundFit?: SidebarBackgroundFit;
+  detailBackgroundTransition?: DetailBackgroundTransition;
+  detailTextTransition?: DetailTextTransition;
 };
 
 export type SortKey = "recent" | "title" | "playtime" | "added";

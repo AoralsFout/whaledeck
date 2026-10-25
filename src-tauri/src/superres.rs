@@ -17,6 +17,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use crate::file_memo::FileMemo;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
@@ -174,6 +175,57 @@ struct Slot {
 pub struct SuperRes {
     inner: Arc<Mutex<Option<Slot>>>,
     stopping: AtomicBool,
+    lookup: Arc<Mutex<LookupCache>>,
+}
+
+#[derive(Default)]
+struct LookupCache {
+    hashes: FileMemo<u64>,
+    images: FileMemo<bool>,
+}
+
+impl LookupCache {
+    /// 展示只定位候选文件，不做图片解码；原图哈希仍按文件属性复用。
+    fn status(
+        &mut self,
+        cover: &Path,
+        dir: &Path,
+        id: &str,
+        preset: Preset,
+    ) -> Result<Option<String>, String> {
+        let hash = self
+            .hashes
+            .get(cover, |path| {
+                fs::read(path).map(|bytes| content_hash(&bytes))
+            })
+            .map_err(|e| format!("读取封面失败：{e}"))?;
+        let name = cache_name(id, hash, preset.cache_key());
+        let exists = fs::metadata(dir.join(&name))
+            .is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0);
+        Ok(exists.then_some(name))
+    }
+
+    /// 只有生成命令需要判断是否可复用；前端已拒绝的图片直接重建。
+    fn reusable(
+        &mut self,
+        cover: &Path,
+        dir: &Path,
+        id: &str,
+        preset: Preset,
+        force: bool,
+    ) -> Result<Option<String>, String> {
+        if force {
+            return Ok(None);
+        }
+        let Some(name) = self.status(cover, dir, id, preset)? else {
+            return Ok(None);
+        };
+        let valid = self
+            .images
+            .get(&dir.join(&name), |path| Ok(valid_cache(path)))
+            .unwrap_or(false);
+        Ok(valid.then_some(name))
+    }
 }
 
 impl SuperRes {
@@ -494,6 +546,7 @@ struct Request {
     game_id: String,
     preset: Preset,
     task_id: String,
+    force: bool,
 }
 
 /// 生成派生图；返回 `Ok(Some(name))` 表示命中缓存，`Ok(None)` 表示已开始后台任务。
@@ -509,11 +562,14 @@ fn generate(
         game_id,
         preset,
         task_id,
+        force,
     } = request;
-    let bytes = fs::read(&cover).map_err(|e| format!("读取封面失败：{e}"))?;
-    let hash = content_hash(&bytes);
-    let name = cache_name(&game_id, hash, preset.cache_key());
-    if valid_cache(&dir.join(&name)) {
+    let cached = superres
+        .lookup
+        .lock()
+        .map_err(|_| "封面缓存状态不可用".to_string())?
+        .reusable(&cover, &dir, &game_id, preset, force)?;
+    if let Some(name) = cached {
         return Ok(Some(name));
     }
 
@@ -703,6 +759,191 @@ pub fn remove_all(dir: &Path, game_id: &str) -> Result<bool, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn view_status_returns_existing_candidate_without_decoding_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let cover = dir.path().join("original.png");
+        fs::write(&cover, b"original").unwrap();
+        let name = cache_name(
+            "g",
+            content_hash(b"original"),
+            Preset::Efficient.cache_key(),
+        );
+        fs::write(dir.path().join(&name), b"not a decodable PNG").unwrap();
+        let mut lookup = LookupCache::default();
+        assert_eq!(
+            lookup
+                .status(&cover, dir.path(), "g", Preset::Efficient)
+                .unwrap(),
+            Some(name)
+        );
+    }
+
+    #[test]
+    fn view_status_skips_missing_empty_and_directory_candidates() {
+        let dir = tempfile::tempdir().unwrap();
+        let cover = dir.path().join("original.png");
+        fs::write(&cover, b"original").unwrap();
+        let path = dir.path().join(cache_name(
+            "g",
+            content_hash(b"original"),
+            Preset::Efficient.cache_key(),
+        ));
+        let mut lookup = LookupCache::default();
+        assert_eq!(
+            lookup
+                .status(&cover, dir.path(), "g", Preset::Efficient)
+                .unwrap(),
+            None
+        );
+        fs::write(&path, b"").unwrap();
+        assert_eq!(
+            lookup
+                .status(&cover, dir.path(), "g", Preset::Efficient)
+                .unwrap(),
+            None
+        );
+        fs::remove_file(&path).unwrap();
+        fs::create_dir(&path).unwrap();
+        assert_eq!(
+            lookup
+                .status(&cover, dir.path(), "g", Preset::Efficient)
+                .unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn forced_generation_bypasses_even_valid_cache_and_preserves_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let cover = dir.path().join("original.png");
+        fs::write(&cover, b"original").unwrap();
+        let name = cache_name(
+            "g",
+            content_hash(b"original"),
+            Preset::Efficient.cache_key(),
+        );
+        let path = dir.path().join(&name);
+        image::DynamicImage::new_rgb8(12, 8).save(&path).unwrap();
+        let before = fs::read(&path).unwrap();
+        let mut lookup = LookupCache::default();
+        assert_eq!(
+            lookup
+                .reusable(&cover, dir.path(), "g", Preset::Efficient, false)
+                .unwrap(),
+            Some(name)
+        );
+        assert_eq!(
+            lookup
+                .reusable(&cover, dir.path(), "g", Preset::Efficient, true)
+                .unwrap(),
+            None
+        );
+        assert_eq!(fs::read(&path).unwrap(), before);
+    }
+
+    #[test]
+    #[ignore = "需指定本机原封面、派生图目录和游戏标识，仅作只读性能测量"]
+    fn cached_status_timings() {
+        let cover =
+            PathBuf::from(std::env::var_os("WHALEDECK_BENCH_COVER").expect("设置原封面路径"));
+        let dir = PathBuf::from(std::env::var_os("WHALEDECK_BENCH_DIR").expect("设置派生图目录"));
+        let id = std::env::var("WHALEDECK_BENCH_ID").expect("设置游戏标识");
+        for preset in [Preset::Efficient, Preset::Quality] {
+            let mut lookup = LookupCache::default();
+            let start = Instant::now();
+            let file = lookup
+                .status(&cover, &dir, &id, preset)
+                .unwrap()
+                .expect("需要已有增强图");
+            let cold_ms = start.elapsed().as_secs_f64() * 1000.0;
+            let start = Instant::now();
+            for _ in 0..50 {
+                assert_eq!(
+                    lookup.status(&cover, &dir, &id, preset).unwrap().as_deref(),
+                    Some(file.as_str())
+                );
+            }
+            let warm_ms = start.elapsed().as_secs_f64() * 1000.0 / 50.0;
+            println!(
+                "{} status: cold={cold_ms:.3}ms, cached_mean={warm_ms:.3}ms (50 reads)",
+                preset.key()
+            );
+        }
+    }
+
+    #[test]
+    fn generation_reuse_rechecks_corrupt_deleted_and_replaced_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let cover = dir.path().join("original.png");
+        fs::write(&cover, b"original").unwrap();
+        let name = cache_name(
+            "g",
+            content_hash(b"original"),
+            Preset::Efficient.cache_key(),
+        );
+        let target = dir.path().join(&name);
+        image::DynamicImage::new_rgb8(12, 8).save(&target).unwrap();
+        let mut lookup = LookupCache::default();
+        for _ in 0..3 {
+            assert_eq!(
+                lookup
+                    .reusable(&cover, dir.path(), "g", Preset::Efficient, false)
+                    .unwrap(),
+                Some(name.clone())
+            );
+        }
+        let len = fs::metadata(&target).unwrap().len() as usize;
+        fs::write(&target, vec![0; len]).unwrap();
+        fs::File::options()
+            .write(true)
+            .open(&target)
+            .unwrap()
+            .set_modified(std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(100))
+            .unwrap();
+        assert_eq!(
+            lookup
+                .reusable(&cover, dir.path(), "g", Preset::Efficient, false)
+                .unwrap(),
+            None
+        );
+        image::DynamicImage::new_rgb8(12, 8).save(&target).unwrap();
+        assert_eq!(
+            lookup
+                .reusable(&cover, dir.path(), "g", Preset::Efficient, false)
+                .unwrap(),
+            Some(name)
+        );
+        fs::remove_file(&target).unwrap();
+        assert_eq!(
+            lookup
+                .reusable(&cover, dir.path(), "g", Preset::Efficient, false)
+                .unwrap(),
+            None
+        );
+        fs::write(&cover, b"new original content").unwrap();
+        assert_eq!(
+            lookup
+                .reusable(&cover, dir.path(), "g", Preset::Efficient, false)
+                .unwrap(),
+            None
+        );
+        let next = cache_name(
+            "g",
+            content_hash(b"new original content"),
+            Preset::Efficient.cache_key(),
+        );
+        image::DynamicImage::new_rgb8(16, 8)
+            .save(dir.path().join(&next))
+            .unwrap();
+        assert_eq!(
+            lookup
+                .reusable(&cover, dir.path(), "g", Preset::Efficient, false)
+                .unwrap(),
+            Some(next)
+        );
+    }
 
     #[test]
     fn snapshot_tracks_stage_and_cancel_targets_only_requested_task() {
@@ -1077,7 +1318,7 @@ fn cover_path(state: &AppState, id: &str) -> Result<PathBuf, String> {
 
 /// 查询已有的派生图；没有则返回 null，前端据此决定显示原图还是增强图。
 #[tauri::command]
-pub fn superres_status(
+pub async fn superres_status(
     state: State<'_, AppState>,
     id: String,
     preset: Option<String>,
@@ -1088,10 +1329,17 @@ pub fn superres_status(
         Ok(path) => path,
         Err(_) => return Ok(None),
     };
-    let bytes = fs::read(&cover).map_err(|e| format!("读取封面失败：{e}"))?;
-    let name = cache_name(&id, content_hash(&bytes), preset.cache_key());
-    let path = state.store.superres_dir().join(&name);
-    Ok(valid_cache(&path).then_some(name))
+    let dir = state.store.superres_dir();
+    let lookup = Arc::clone(&state.superres.lookup);
+    // 冷查询仍需完整校验；在阻塞线程池运行，且不持有游戏库或任务锁。
+    tauri::async_runtime::spawn_blocking(move || {
+        lookup
+            .lock()
+            .map_err(|_| "封面缓存状态不可用".to_string())?
+            .status(&cover, &dir, &id, preset)
+    })
+    .await
+    .map_err(|e| format!("查询封面缓存失败：{e}"))?
 }
 
 /// 生成增强图：命中缓存直接返回文件名，否则在后台启动辅助进程并立即返回 null。
@@ -1102,6 +1350,7 @@ pub fn superres_generate(
     id: String,
     preset: Option<String>,
     task_id: Option<String>,
+    force: Option<bool>,
 ) -> Result<Option<String>, String> {
     let task_id = match task_id {
         Some(id) => uuid::Uuid::parse_str(&id)
@@ -1123,6 +1372,7 @@ pub fn superres_generate(
             game_id: id,
             preset,
             task_id,
+            force: force.unwrap_or(false),
         },
     )
 }

@@ -4,8 +4,10 @@
  * 负责「跨组件的一次性生命周期」，不承载具体业务表单逻辑。
  * 对应文档：docs/前端实现.md「状态分层」「启动、主题与资源」。
  */
-import { useEffect, useLayoutEffect, useState } from "react";
-import { onGameStopped, onLaunchFailed, onSettingsChanged } from "./lib/ipc";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { api, onGameStopped, onLaunchFailed, onSettingsChanged } from "./lib/ipc";
+import { coverFraming } from "./lib/coverFraming";
+import { createCoverQuickEdit } from "./store/coverQuickEdit";
 import { applyTheme } from "./lib/theme";
 import { useAssetUrl } from "./lib/useAssetUrl";
 import { APP_ICON_URL } from "./lib/brand";
@@ -43,6 +45,25 @@ export default function App() {
   const init = useLibrary((s) => s.init);
   const select = useLibrary((s) => s.select);
   const openNew = useLibrary((s) => s.openNew);
+
+  // 文件改变即隔离旧草稿；保存回包只应用到仍存在且封面未更换的记录。
+  const coverEditor = useMemo(() => {
+    const id = selected?.id;
+    const file = selected?.coverFile;
+    return createCoverQuickEdit(coverFraming(selected ?? { coverFile: null }), {
+      save: async framing => {
+        if (!id) throw new Error("请先选择游戏");
+        const updated = await api.saveCoverFraming(id, framing);
+        const state = useLibrary.getState();
+        if (state.games.some(game => game.id === id && game.coverFile === file)) state.applyGame(updated);
+        return coverFraming(updated);
+      },
+      error: error => useLibrary.getState().showToast("error", `保存封面取景失败：${String(error)}`),
+    });
+  }, [selected?.id, selected?.coverFile]);
+  useEffect(() => {
+    if (selected) coverEditor.sync(coverFraming(selected));
+  }, [coverEditor, selected]);
 
   useEffect(() => {
     void init();
@@ -104,10 +125,10 @@ export default function App() {
 
   return (
     <div className="app-shell flex h-full" data-navigation-open={navigationOpen} data-sidebar-auto-hide={settings?.theme.sidebarAutoHide ?? true}>
-      <WindowChrome />
+      <WindowChrome coverEditor={coverEditor} coverDisabled={formOpen || settingsOpen || scanOpen || metaOpen} />
       <SidebarNavigation open={navigationOpen} onOpenChange={setNavigationOpen} autoHide={settings?.theme.sidebarAutoHide ?? true} dialogOpen={formOpen || settingsOpen || scanOpen || metaOpen} />
       <main id="main-content" tabIndex={-1} className="relative min-h-0 min-w-0 flex-1">
-        {selected ? <GameDetail key={selected.id} game={selected} /> : <EmptyState onAdd={openNew} filtered={gameCount > 0} onReset={() => {
+        {selected ? <GameDetail game={selected} coverEditor={coverEditor} /> : <EmptyState onAdd={openNew} filtered={gameCount > 0} onReset={() => {
           useLibrary.getState().setQuery("");
           useLibrary.getState().setNav({ type: "all" });
         }} />}

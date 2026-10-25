@@ -470,6 +470,14 @@ mod tests {
         assert_eq!(default.sort, "recent");
         assert!(default.theme.sidebar_auto_hide);
         assert!(!default.theme.sidebar_glass);
+        assert_eq!(
+            default.theme.detail_background_transition,
+            crate::models::DetailBackgroundTransition::Blur
+        );
+        assert_eq!(
+            default.theme.detail_text_transition,
+            crate::models::DetailTextTransition::Fade
+        );
 
         let mut s = default.clone();
         s.theme.primary = "#ff0000".into();
@@ -477,6 +485,8 @@ mod tests {
         s.theme.sidebar_glass = true;
         s.theme.sidebar_background_file = Some("sidebar.png".into());
         s.theme.sidebar_transparency = 0.75;
+        s.theme.detail_background_transition = crate::models::DetailBackgroundTransition::SlideUp;
+        s.theme.detail_text_transition = crate::models::DetailTextTransition::Scramble;
         s.categories = vec!["独立".into()];
         store.save_settings(&s).unwrap();
         let loaded = store.load_settings();
@@ -488,6 +498,14 @@ mod tests {
             s.theme.sidebar_background_file
         );
         assert_eq!(loaded.theme.sidebar_transparency, 0.75);
+        assert_eq!(
+            loaded.theme.detail_background_transition,
+            s.theme.detail_background_transition
+        );
+        assert_eq!(
+            loaded.theme.detail_text_transition,
+            s.theme.detail_text_transition
+        );
         assert_eq!(loaded.categories, vec!["独立".to_string()]);
     }
 

@@ -4,7 +4,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import type { SuperResDone, SuperResFailed, SuperResPreset, SuperResProgress } from "../lib/ipc";
-import { createCoverSuperres } from "./coverSuperres";
+import { coverSuperresSource, createCoverSuperres } from "./coverSuperres";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -20,20 +20,187 @@ function setup() {
   const off = vi.fn();
   const deps = {
     status: vi.fn<(id: string, preset: SuperResPreset) => Promise<string | null>>().mockResolvedValue(null),
-    generate: vi.fn<(id: string, preset: SuperResPreset, taskId: string) => Promise<string | null>>().mockResolvedValue(null),
+    generate: vi.fn<(id: string, preset: SuperResPreset, taskId: string, force?: boolean) => Promise<string | null>>().mockResolvedValue(null),
     task: vi.fn<() => Promise<SuperResProgress | null>>().mockResolvedValue(null),
     cancel: vi.fn<(id: string, taskId: string) => Promise<boolean>>().mockResolvedValue(true), remove: vi.fn().mockResolvedValue(undefined), notify: vi.fn(),
+    invalidate: vi.fn(),
     progress: async (cb: typeof progress) => { progress = cb; return off; },
     done: async (cb: typeof done) => { done = cb; return off; },
     failed: async (cb: typeof failed) => { failed = cb; return off; },
     cancelled: async (cb: typeof cancelled) => { cancelled = cb; return off; },
   };
-  const store = createCoverSuperres("g", deps);
+  const store = createCoverSuperres("g", deps, { read: () => null, write: vi.fn() });
   return { store, deps, off, progress: (p: SuperResProgress) => progress(p), done: (p: SuperResDone) => done(p),
     failed: (p: SuperResFailed) => failed(p), cancelled: (p: SuperResFailed) => cancelled(p) };
 }
 
 describe("封面超分", () => {
+  it("增强图加载失败后回退原图，不自动生成，点击才强制重建当前档", async () => {
+    const { store, deps, done } = setup();
+    deps.status.mockImplementation(async (_, preset) => `${preset}.png`);
+    store.getState().connect(); await flush();
+    store.getState().rejectFile("efficient", "efficient.png");
+    expect(coverSuperresSource(store.getState(), "original.png")).toEqual({ kind: "cover", file: "original.png" });
+    expect(store.getState().rejected.efficient).toBe(true);
+    expect(deps.invalidate).toHaveBeenCalledWith("efficient.png");
+    expect(deps.notify).toHaveBeenCalledWith("error", expect.stringContaining("加载失败"));
+    expect(deps.generate).not.toHaveBeenCalled();
+    await store.getState().start();
+    expect(deps.generate).toHaveBeenCalledExactlyOnceWith("g", "efficient", expect.any(String), true);
+    done({ gameId: "g", taskId: store.getState().task!.taskId, preset: "efficient", file: "efficient.png", elapsedMs: 200 });
+    await flush();
+    expect(store.getState().rejected.efficient).toBe(false);
+    expect(coverSuperresSource(store.getState(), "original.png")).toEqual({ kind: "superres", file: "efficient.png" });
+  });
+
+  it("加载失败仅标记对应档位，旧文件或卸载后的失败不能破坏当前缓存", async () => {
+    const { store, deps } = setup();
+    deps.status.mockImplementation(async (_, preset) => `${preset}.png`);
+    const disconnect = store.getState().connect(); await flush();
+    store.getState().select("quality"); await flush();
+    store.getState().rejectFile("quality", "old.png");
+    expect(deps.notify).not.toHaveBeenCalled();
+    store.getState().rejectFile("quality", "quality.png");
+    expect(store.getState().files).toEqual({ efficient: "efficient.png", quality: null });
+    disconnect(); store.getState().rejectFile("efficient", "efficient.png");
+    expect(store.getState().files.efficient).toBe("efficient.png");
+  });
+
+  it("恢复所选质量档时只查询质量，不等待或读取效率档", async () => {
+    const { deps } = setup();
+    const blocked = deferred<string | null>();
+    deps.status.mockImplementation((_, preset) => preset === "quality" ? Promise.resolve("quality.png") : blocked.promise);
+    const store = createCoverSuperres("g", deps, { read: () => ({ preset: "quality", showEnhanced: true }), write: vi.fn() });
+    store.getState().connect(); await flush();
+    expect(deps.status).toHaveBeenCalledExactlyOnceWith("g", "quality");
+    expect(coverSuperresSource(store.getState(), "original.png")).toEqual({ kind: "superres", file: "quality.png" });
+    store.getState().select("efficient"); await flush();
+    expect(coverSuperresSource(store.getState(), "original.png")).toBeNull();
+    store.getState().select("quality");
+    expect(coverSuperresSource(store.getState(), "original.png")).toEqual({ kind: "superres", file: "quality.png" });
+    expect(deps.status).toHaveBeenCalledTimes(2);
+    blocked.resolve("efficient.png"); await flush();
+    expect(store.getState().preset).toBe("quality");
+  });
+
+  it("无偏好且效率缓存存在时不查询另一档", async () => {
+    const { store, deps } = setup();
+    deps.status.mockResolvedValue("efficient.png");
+    store.getState().connect(); await flush();
+    expect(deps.status).toHaveBeenCalledExactlyOnceWith("g", "efficient");
+    expect(coverSuperresSource(store.getState(), "original.png")).toEqual({ kind: "superres", file: "efficient.png" });
+  });
+
+  it("新档位尚未查明时不能短暂输出原图，迟到查询不改变所选档位", async () => {
+    const { store, deps } = setup();
+    deps.status.mockResolvedValueOnce("efficient.png");
+    store.getState().connect(); await flush();
+    const slow = deferred<string | null>(); deps.status.mockReturnValueOnce(slow.promise);
+    const sources: ReturnType<typeof coverSuperresSource>[] = [];
+    store.subscribe(() => sources.push(coverSuperresSource(store.getState(), "original.png")));
+    store.getState().select("quality");
+    store.getState().select("efficient");
+    slow.resolve("quality.png"); await flush();
+    expect(sources.some(source => source?.kind === "cover")).toBe(false);
+    expect(store.getState().preset).toBe("efficient");
+  });
+
+  it("同名图片重新生成完成后使图片缓存及展示版本失效，删除清空资源复用", async () => {
+    const { store, deps, done } = setup();
+    deps.status.mockResolvedValue("same.png");
+    store.getState().connect(); await flush();
+    done({ gameId: "g", taskId: "refresh", preset: "efficient", file: "same.png", elapsedMs: 100 });
+    await flush();
+    expect(deps.invalidate).toHaveBeenCalledWith("same.png");
+    expect(store.getState().imageRevision.efficient).toBe(1);
+    await store.getState().remove();
+    expect(deps.invalidate).toHaveBeenLastCalledWith();
+  });
+
+  it("旧完成事件打断首次查询时，当前无缓存仍能结束查询并允许生成", async () => {
+    const { deps, done } = setup();
+    const initial = deferred<string | null>();
+    deps.status.mockReturnValueOnce(initial.promise).mockResolvedValue(null);
+    const store = createCoverSuperres("g", deps, { read: () => ({ preset: "quality", showEnhanced: true }), write: vi.fn() });
+    store.getState().connect(); await flush();
+    done({ gameId: "g", taskId: "old-cover", preset: "quality", file: "old.png", elapsedMs: 100 });
+    await flush(); initial.resolve("stale.png"); await flush();
+    expect(coverSuperresSource(store.getState(), "original.png")).toEqual({ kind: "cover", file: "original.png" });
+    expect(store.getState().files.quality).toBeNull();
+    await store.getState().start();
+    expect(deps.generate).toHaveBeenCalledOnce();
+  });
+
+  it("切换游戏重建详情后恢复该游戏的质量档及原图选择", async () => {
+    const { deps } = setup();
+    let choice = { preset: "efficient" as SuperResPreset, showEnhanced: true };
+    const preference = { read: () => choice, write: (_id: string, value: typeof choice) => { choice = value; } };
+    const first = createCoverSuperres("g", deps, preference);
+    const disconnect = first.getState().connect(); await flush();
+    first.getState().select("quality");
+    first.getState().toggle();
+    disconnect();
+    const second = createCoverSuperres("g", deps, preference);
+    second.getState().connect(); await flush();
+    expect(second.getState()).toMatchObject({ preset: "quality", showEnhanced: false });
+  });
+
+  it("没有选择记录且只有质量缓存时直接选择质量档", async () => {
+    const { store, deps } = setup();
+    deps.status.mockImplementation(async (_, preset) => preset === "quality" ? "quality.png" : null);
+    store.getState().connect(); await flush();
+    expect(store.getState()).toMatchObject({ preset: "quality", showEnhanced: true });
+  });
+
+  it("两档查询结束前不能把未知缓存当作不存在", async () => {
+    const { store, deps } = setup();
+    const quality = deferred<string | null>();
+    deps.status.mockImplementation(async (_, preset) => preset === "quality" ? quality.promise : null);
+    store.getState().connect(); await flush();
+    expect(store.getState()).toMatchObject({ filesReady: false });
+    quality.resolve("quality.png"); await flush();
+    expect(store.getState()).toMatchObject({ filesReady: true, preset: "quality" });
+  });
+
+  it("查询期间与质量缓存就绪后都不会选择原图资源", async () => {
+    const { store, deps } = setup();
+    const efficient = deferred<string | null>();
+    const quality = deferred<string | null>();
+    deps.status.mockImplementation((_, preset) => preset === "quality" ? quality.promise : efficient.promise);
+    const sources: ReturnType<typeof coverSuperresSource>[] = [];
+    const sample = () => sources.push(coverSuperresSource(store.getState(), "original.png"));
+    store.subscribe(sample);
+    sample(); store.getState().connect(); await flush();
+    efficient.resolve(null); await flush();
+    expect(sources.every((source) => source === null)).toBe(true);
+    quality.resolve("quality.png"); await flush();
+    expect(coverSuperresSource(store.getState(), "original.png")).toEqual({ kind: "superres", file: "quality.png" });
+    expect(sources.some((source) => source?.kind === "cover")).toBe(false);
+  });
+
+  it("记住的质量档缺失时保留档位，查明后才选择原图", async () => {
+    const { deps } = setup();
+    deps.status.mockImplementation(async (_, preset) => preset === "efficient" ? "efficient.png" : null);
+    const preference = { read: () => ({ preset: "quality" as const, showEnhanced: true }), write: vi.fn() };
+    const store = createCoverSuperres("g", deps, preference);
+    expect(coverSuperresSource(store.getState(), "original.png")).toBeNull();
+    store.getState().connect(); await flush();
+    expect(store.getState().preset).toBe("quality");
+    expect(coverSuperresSource(store.getState(), "original.png")).toEqual({ kind: "cover", file: "original.png" });
+  });
+
+  it("恢复运行中任务不会覆盖已记住的显示选择", async () => {
+    const { deps, progress } = setup();
+    deps.task.mockResolvedValue({ gameId: "g", taskId: "running", preset: "efficient", stage: "processing", elapsedMs: 100 });
+    const preference = { read: () => ({ preset: "quality" as const, showEnhanced: false }), write: vi.fn() };
+    const store = createCoverSuperres("g", deps, preference);
+    store.getState().connect(); await flush();
+    progress({ gameId: "g", taskId: "running", preset: "efficient", stage: "saving", elapsedMs: 200 });
+    expect(store.getState()).toMatchObject({ preset: "quality", showEnhanced: false, task: { preset: "efficient", stage: "saving" } });
+    expect(preference.write).not.toHaveBeenCalled();
+  });
+
+
   it("删除期间的迟到进度和完成不能中断删除或恢复旧文件", async () => {
     const { store, deps, progress, done } = setup();
     deps.status.mockResolvedValue("existing.png");
@@ -137,9 +304,11 @@ describe("封面超分", () => {
     const { store, deps } = setup();
     deps.status.mockImplementation(async (_, preset) => `${preset}.png`);
     store.getState().connect(); await flush();
-    expect(store.getState()).toMatchObject({ ready: true, preset: "efficient", files: { efficient: "efficient.png", quality: "quality.png" } });
+    expect(store.getState()).toMatchObject({ ready: true, preset: "efficient", files: { efficient: "efficient.png", quality: null } });
     store.getState().select("quality");
+    await flush();
     expect(store.getState().preset).toBe("quality");
+    expect(store.getState().files.quality).toBe("quality.png");
     expect(deps.generate).not.toHaveBeenCalled();
     await store.getState().remove();
     expect(store.getState().files).toEqual({ efficient: null, quality: null });
@@ -189,7 +358,7 @@ describe("封面超分", () => {
     const { store, deps, cancelled, failed } = setup();
     deps.status.mockResolvedValue("existing.png");
     store.getState().connect(); await flush();
-    store.getState().select("quality"); await store.getState().start();
+    store.getState().select("quality"); await flush(); await store.getState().start();
     await store.getState().cancel();
     expect(store.getState()).toMatchObject({ cancelling: true, task: { preset: "quality" } });
     cancelled({ gameId: "g", taskId: store.getState().task!.taskId, preset: "quality", message: "已取消" });

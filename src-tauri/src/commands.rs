@@ -866,7 +866,7 @@ mod game_write_tests {
         assert!(settings.theme.sidebar_auto_hide);
         assert!(!settings.theme.sidebar_glass);
         assert!(!settings.theme.sidebar_clear_glass);
-        assert!(!settings.theme.sidebar_background_fit.enabled);
+        assert!(settings.theme.sidebar_background_fit.enabled);
         assert_eq!(
             settings.theme.sidebar_background_fit.mode,
             crate::models::BackgroundFitMode::Contain
