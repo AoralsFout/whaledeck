@@ -5,7 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "./ipc";
-import { invalidateAssetUrls, loadAssetUrl, waitForAssets } from "./assets";
+import { decodedAssetImage, invalidateAssetUrls, loadAssetUrl, waitForAssets } from "./assets";
 
 vi.mock("./ipc", () => ({ api: { assetPath: vi.fn() }, fileUrl: (path: string) => `asset:${path}` }));
 
@@ -70,6 +70,20 @@ describe("启动图片准备", () => {
     expect(await loadAssetUrl("superres", "retry.png")).toBeNull();
     expect(await loadAssetUrl("superres", "retry.png")).toMatch(/^asset:cover\.png\?v=\d+$/);
     expect(decode).toHaveBeenCalledTimes(2);
+  });
+
+  it("适配图在解码前开启匿名 CORS，取色可借用已解码资源并随失效清理", async () => {
+    const corsAtDecode: string[] = [];
+    vi.stubGlobal("Image", class {
+      src = ""; crossOrigin = ""; naturalWidth = 100; naturalHeight = 100;
+      decode() { corsAtDecode.push(this.crossOrigin); return Promise.resolve(); }
+    });
+    expect(decodedAssetImage("backgroundFit", "palette.png")).toBeNull();
+    await loadAssetUrl("backgroundFit", "palette.png");
+    expect(corsAtDecode).toEqual(["anonymous"]);
+    expect(decodedAssetImage("backgroundFit", "palette.png")?.src).toContain("asset:cover.png");
+    invalidateAssetUrls("backgroundFit", "palette.png");
+    expect(decodedAssetImage("backgroundFit", "palette.png")).toBeNull();
   });
 
   it("同名资源失效后重新解码，旧请求不能写回缓存", async () => {

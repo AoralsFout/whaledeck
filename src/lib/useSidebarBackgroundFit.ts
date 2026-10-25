@@ -5,10 +5,12 @@
 import { useEffect, useState } from "react";
 import type { BackgroundFitRequest, BackgroundFitResult, BackgroundSource, SidebarBackgroundFit } from "../types";
 import { backgroundFitSize, latestRequestQueue } from "./backgroundFit";
-import { loadAssetUrl } from "./assets";
+import { decodedAssetImage, loadAssetUrl } from "./assets";
+import { sampleSidebarImage } from "./sidebarPaletteImage";
+import type { SidebarImageColors } from "./sidebarPalette";
 import { api } from "./ipc";
 
-type FittedImage = BackgroundFitResult & { url: string };
+type FittedImage = BackgroundFitResult & { url: string; colors: SidebarImageColors | null };
 const inFlight = new Map<string, Promise<FittedImage>>();
 
 /** 同时打开预览和实际侧栏时，共用相同的执行中任务；完成后仍由后端核验内容缓存。 */
@@ -20,7 +22,8 @@ function loadFit(request: BackgroundFitRequest): Promise<FittedImage> {
     const result = await api.fitSidebarBackground(request);
     const url = await loadAssetUrl("backgroundFit", result.file);
     if (!url) throw new Error("适配图片加载失败，请重试或更换图片");
-    return { ...result, url };
+    const colors = sampleSidebarImage(decodedAssetImage("backgroundFit", result.file), result, request.padding > 0);
+    return { ...result, url, colors };
   })().finally(() => { inFlight.delete(key); });
   inFlight.set(key, task);
   return task;

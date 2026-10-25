@@ -33,6 +33,10 @@
   --bg-dim: 0.55;
   --bg-image: none;
   --sidebar-overlay-opacity: 0.48;
+  /* 在根作用域解析，侧栏动态配色不能反过来改变图片与整幅遮罩。 */
+  --sidebar-theme-surface: var(--surface);
+  --sidebar-image-primary-rgb: var(--primary-rgb);
+  --sidebar-image-accent-rgb: var(--accent-rgb);
   --window-radius: 12px;
   --app-color-scheme: dark;
   /* 根画布保持默认配色，避免 WebView 为透明区域填充深色底。 */
@@ -511,13 +515,13 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 .library-sidebar[data-has-background="true"] { backdrop-filter: none; }
 .library-sidebar::after {
   z-index: -1;
-  background: var(--surface);
+  background: var(--sidebar-theme-surface);
   opacity: var(--sidebar-overlay-opacity);
 }
 /* 只模糊独立图片层，扩边后裁切以避免四周出现空白；控件不参与模糊。 */
 .library-sidebar[data-glass="true"] .sidebar-background-image {
   inset: -36px;
-  background-image: var(--sidebar-image, none), linear-gradient(155deg, rgba(var(--primary-rgb), .24), transparent 55%, rgba(var(--accent-rgb), .16));
+  background-image: var(--sidebar-image, none), linear-gradient(155deg, rgba(var(--sidebar-image-primary-rgb), .24), transparent 55%, rgba(var(--sidebar-image-accent-rgb), .16));
   filter: blur(24px) saturate(1.15);
 }
 .library-sidebar[data-glass="true"] {
@@ -563,7 +567,8 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 .sidebar-tool { min-width: 36px; min-height: 36px; }
 .search-clear { display: grid; place-items: center; width: 28px; height: 28px; }
 .sidebar-filters { max-height: 112px; overflow-y: auto; scrollbar-width: thin; }
-.filter-chip { min-height: 28px; min-width: 40px; overflow-wrap: anywhere; text-align: start; }
+.filter-chip { min-height: 28px; min-width: 40px; overflow-wrap: anywhere; text-align: start; background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--border); }
+.filter-chip[aria-pressed="true"] { background: rgba(var(--primary-rgb), .16); color: var(--primary-ink); border-color: rgba(var(--primary-rgb), .4); }
 .library-item { min-height: 56px; background: transparent; border: 1px solid transparent; }
 @media (hover: hover) and (pointer: fine) {
   .filter-chip:enabled:hover { filter: brightness(1.1); }
@@ -571,7 +576,24 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
   :is(.search-clear, .settings-category-remove):enabled:hover { background-color: rgba(var(--primary-rgb), .12); }
 }
 .library-item[aria-current="true"] { background: rgba(var(--primary-rgb), .13); border-color: rgba(var(--primary-rgb), .3); }
+/* 局部承载表面保护透明图片及交接中的极端明暗；不覆盖整幅背景。 */
+.library-sidebar[data-adaptive-color="true"] { color: var(--text); color-scheme: var(--sidebar-color-scheme); }
+.library-sidebar[data-adaptive-color="true"] :is(.sidebar-controls, .sidebar-footer, .library-item, .sidebar-empty) { background: var(--sidebar-panel); }
+.sidebar-controls { flex-shrink: 0; }
+.library-sidebar[data-adaptive-color="true"] .sidebar-controls { padding-bottom: 10px; }
+.library-sidebar[data-adaptive-color="true"] .sidebar-footer { flex-shrink: 0; }
+.library-sidebar[data-adaptive-color="true"] .library-item { border-color: var(--border); }
+.library-sidebar[data-adaptive-color="true"] :is(.library-item[aria-current="true"], .filter-chip[aria-pressed="true"]) { background: var(--sidebar-selected); border-color: var(--primary); }
+.library-sidebar[data-adaptive-color="true"] .btn-primary { background: var(--primary); color: var(--sidebar-on-primary); }
+.library-sidebar[data-adaptive-color="true"] .input::placeholder { color: var(--text-dim); }
+/* 立即交接文字与表面，避免两个合格配色插值时短暂失去对比度。 */
+.library-sidebar[data-adaptive-color="true"] button { transition-property: transform, box-shadow, opacity; }
+@media (hover: hover) and (pointer: fine) {
+  .library-sidebar[data-adaptive-color="true"] .library-item:enabled:hover:not([aria-current="true"]) { background: var(--sidebar-hover); }
+  .library-sidebar[data-adaptive-color="true"] :is(.filter-chip, .btn-primary):enabled:hover { filter: none; }
+}
 .library-item:enabled:active { background: rgba(var(--primary-rgb), .19); }
+.library-sidebar[data-adaptive-color="true"] .library-item:enabled:active { background: var(--sidebar-selected); }
 .library-item:focus-visible { outline-offset: -2px; }
 .mobile-nav-toggle, .mobile-sidebar-back { display: none; }
 
