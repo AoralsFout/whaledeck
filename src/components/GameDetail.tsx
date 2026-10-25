@@ -447,7 +447,7 @@ function GameDetailContent({ game, enhanceStore }: { game: Game; enhanceStore: R
                 : "用默认程序打开"}
           </button>
           <select
-            className="btn !px-2 text-[12px]"
+            className="btn btn-icon-glass detail-preset-select text-[12px]"
             aria-label="封面增强档位"
             value={enhancement.preset}
             disabled={enhanceBusy || !game.coverFile}
