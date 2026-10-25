@@ -21,7 +21,8 @@ export function backgroundFitSize(cssWidth: number, cssHeight: number, dpr: numb
   const scale = Math.min(dpr, 4096 / cssWidth, 4096 / cssHeight, Math.sqrt(4_000_000 / (cssWidth * cssHeight)));
   let width = Math.max(1, Math.floor(cssWidth * scale));
   let height = Math.max(1, Math.floor(cssHeight * scale));
-  let padding = glass ? Math.min(512, Math.round(36 * scale)) : 0;
+  // 按最大磨砂半径预留扩边，拖动模糊度只更新滤镜，不反复生成图片。
+  let padding = glass ? Math.min(512, Math.round(72 * scale)) : 0;
   const outerPixels = (width + 2 * padding) * (height + 2 * padding);
   if (outerPixels > 6_000_000) {
     const reduction = Math.sqrt(6_000_000 / outerPixels);

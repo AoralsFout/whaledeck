@@ -5,7 +5,7 @@ import type { Theme } from "../types";
 
 describe("侧栏背景适配", () => {
   it("按实际区域和 DPR 生成，极端尺寸仍保留比例并满足后台预算", () => {
-    expect(backgroundFitSize(258, 820, 2, true)).toEqual({ width: 516, height: 1640, padding: 72 });
+    expect(backgroundFitSize(258, 820, 2, true)).toEqual({ width: 516, height: 1640, padding: 144 });
     for (const [w, h, dpr] of [[258, 820, 8], [375, 812, 1.5], [8000, 3000, 3], [1, 90000, 100], [2000, 2000, 10]]) {
       const result = backgroundFitSize(w, h, dpr, true)!;
       expect(result.width).toBeLessThanOrEqual(4096);

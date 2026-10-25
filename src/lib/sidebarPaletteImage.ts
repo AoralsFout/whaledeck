@@ -23,8 +23,8 @@ export function sampleSidebarImage(image: HTMLImageElement | null, fit: Backgrou
     canvas.height = height + 2 * padding;
     const context = canvas.getContext("2d", { willReadFrequently: true });
     if (!context) return null;
-    // 扩边对应 CSS 的 36px，保留滤镜相对于可见画面的比例。
-    if (glass) context.filter = `blur(${padding * 2 / 3}px) saturate(1.15)`;
+    // 固定扩边对应 CSS 的 72px，按默认 24px 磨砂采样；滑块拖动只更新显示滤镜。
+    if (glass) context.filter = `blur(${padding / 3}px) saturate(1.15)`;
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
     const pixels = context.getImageData(padding, padding, width, height).data;
     const colors = analyzeSidebarPixels(pixels, width, height, .4);

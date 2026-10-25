@@ -22,7 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "../lib/ipc";
-import { PRESETS, presetToTheme } from "../lib/theme";
+import { MAX_SIDEBAR_BLUR, PRESETS, presetToTheme, sidebarBlur } from "../lib/theme";
 import { useLibrary } from "../store/useLibrary";
 import type { Theme, ThemePreset } from "../types";
 import { Modal } from "./Modal";
@@ -376,6 +376,20 @@ export function SettingsPanel() {
                   <button type="button" className="sidebar-segment" aria-pressed={sidebarGlass} onClick={() => patchTheme({ sidebarGlass: !sidebarGlass, sidebarClearGlass: false })}>半透明磨砂</button>
                   <button type="button" className="sidebar-segment" aria-pressed={theme.sidebarClearGlass ?? false} onClick={() => patchTheme({ sidebarClearGlass: !theme.sidebarClearGlass, sidebarGlass: false })}>全透明背景</button>
                 </div>
+                {sidebarGlass && <div>
+                  <label className="sidebar-control-label" htmlFor="sidebar-blur"><span>模糊度</span><output htmlFor="sidebar-blur">{sidebarBlur(theme.sidebarBlur)} px</output></label>
+                  <input
+                    id="sidebar-blur"
+                    type="range"
+                    min={0}
+                    max={MAX_SIDEBAR_BLUR}
+                    step={1}
+                    value={sidebarBlur(theme.sidebarBlur)}
+                    aria-valuetext={`${sidebarBlur(theme.sidebarBlur)} 像素`}
+                    onChange={(e) => patchTheme({ sidebarBlur: Number(e.target.value) })}
+                    className="w-full accent-[var(--primary)]"
+                  />
+                </div>}
                 {!theme.sidebarClearGlass && <div>
                   <label className="sidebar-control-label" htmlFor="sidebar-transparency"><span>底色透明度</span><output htmlFor="sidebar-transparency">{Math.round((theme.sidebarTransparency ?? 0.52) * 100)}%</output></label>
                   <input

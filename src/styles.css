@@ -33,6 +33,7 @@
   --bg-dim: 0.55;
   --bg-image: none;
   --sidebar-overlay-opacity: 0.48;
+  --sidebar-blur: 24px;
   /* 在根作用域解析，侧栏动态配色不能反过来改变图片与整幅遮罩。 */
   --sidebar-theme-surface: var(--surface);
   --sidebar-image-primary-rgb: var(--primary-rgb);
@@ -520,9 +521,13 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 }
 /* 只模糊独立图片层，扩边后裁切以避免四周出现空白；控件不参与模糊。 */
 .library-sidebar[data-glass="true"] .sidebar-background-image {
-  inset: -36px;
+  inset: -72px;
   background-image: var(--sidebar-image, none), linear-gradient(155deg, rgba(var(--sidebar-image-primary-rgb), .24), transparent 55%, rgba(var(--sidebar-image-accent-rgb), .16));
-  filter: blur(24px) saturate(1.15);
+  filter: blur(var(--sidebar-blur)) saturate(1.15);
+}
+/* 无图片时沿用同一模糊度；已有图片时仍避免重复采样背后画面。 */
+.library-sidebar[data-glass="true"]:not([data-has-background="true"]) {
+  backdrop-filter: blur(var(--sidebar-blur)) saturate(1.15);
 }
 .library-sidebar[data-glass="true"] {
   box-shadow: inset -1px 0 0 color-mix(in srgb, var(--text) 8%, transparent);

@@ -81,6 +81,8 @@ pub struct Theme {
     pub sidebar_auto_hide: bool,
     #[serde(default)]
     pub sidebar_glass: bool,
+    #[serde(default = "default_sidebar_blur")]
+    pub sidebar_blur: u8,
     #[serde(default)]
     pub sidebar_clear_glass: bool,
     #[serde(default)]
@@ -155,6 +157,10 @@ fn default_sidebar_transparency() -> f32 {
     0.52
 }
 
+fn default_sidebar_blur() -> u8 {
+    24
+}
+
 fn default_sidebar_auto_hide() -> bool {
     true
 }
@@ -170,6 +176,7 @@ impl Default for Theme {
             background_dim: 0.55,
             sidebar_auto_hide: default_sidebar_auto_hide(),
             sidebar_glass: false,
+            sidebar_blur: default_sidebar_blur(),
             sidebar_clear_glass: false,
             sidebar_background_file: None,
             sidebar_transparency: default_sidebar_transparency(),
@@ -316,6 +323,28 @@ pub fn now_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sidebar_blur_preserves_legacy_settings_and_saved_preference() {
+        let mut legacy = serde_json::to_value(Settings::default()).unwrap();
+        legacy["theme"]
+            .as_object_mut()
+            .unwrap()
+            .remove("sidebarBlur");
+        legacy["categories"] = serde_json::json!(["保留分类"]);
+        let restored: Settings = serde_json::from_value(legacy.clone()).unwrap();
+        assert_eq!(restored.theme.sidebar_blur, 24);
+        assert_eq!(restored.categories, vec!["保留分类"]);
+        for blur in [0, 24, 48] {
+            legacy["theme"]["sidebarBlur"] = serde_json::json!(blur);
+            legacy["theme"]["sidebarGlass"] = serde_json::json!(false);
+            let restored: Settings = serde_json::from_value(legacy.clone()).unwrap();
+            assert_eq!(
+                serde_json::to_value(restored).unwrap()["theme"]["sidebarBlur"],
+                blur
+            );
+        }
+    }
 
     #[test]
     fn transition_preferences_accept_legacy_unknown_and_every_choice() {
