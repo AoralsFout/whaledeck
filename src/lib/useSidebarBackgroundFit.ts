@@ -11,11 +11,13 @@ import type { SidebarImageColors } from "./sidebarPalette";
 import { api } from "./ipc";
 
 type FittedImage = BackgroundFitResult & { url: string; colors: SidebarImageColors | null };
+type FitInput = { request: BackgroundFitRequest; revision: number };
 const inFlight = new Map<string, Promise<FittedImage>>();
 
 /** 同时打开预览和实际侧栏时，共用相同的执行中任务；完成后仍由后端核验内容缓存。 */
-function loadFit(request: BackgroundFitRequest): Promise<FittedImage> {
-  const key = JSON.stringify(request);
+function loadFit(input: FitInput): Promise<FittedImage> {
+  const { request } = input;
+  const key = JSON.stringify(input);
   const existing = inFlight.get(key);
   if (existing) return existing;
   const task = (async () => {
@@ -56,20 +58,22 @@ export function useSidebarSize() {
 }
 
 /** 有来源即适配；目标解码完成前保留已显示的图片与扩边，迟到请求不能交接。 */
-export function useSidebarBackgroundFit(source: BackgroundSource | null, config: SidebarBackgroundFit, glass: boolean) {
+export function useSidebarBackgroundFit(source: BackgroundSource | null | undefined, config: SidebarBackgroundFit, glass: boolean, revision = 0) {
   const size = useSidebarSize();
   const dimensions = backgroundFitSize(size.cssWidth, size.cssHeight, size.dpr, glass);
   const request: BackgroundFitRequest | null = source && dimensions ? { ...source, ...dimensions, mode: config.mode, positionX: config.positionX, positionY: config.positionY } : null;
-  const key = request ? JSON.stringify(request) : "";
+  const key = request ? JSON.stringify({ request, revision }) : source === undefined ? "pending" : "";
   const [state, setState] = useState<{ key: string; image: FittedImage | null; error: string | null }>({ key: "", image: null, error: null });
   const [attempt, setAttempt] = useState(0);
-  const [queue, setQueue] = useState<ReturnType<typeof latestRequestQueue<BackgroundFitRequest, FittedImage>> | null>(null);
+  const [queue, setQueue] = useState<ReturnType<typeof latestRequestQueue<FitInput, FittedImage>> | null>(null);
   useEffect(() => {
     const worker = latestRequestQueue(loadFit);
     setQueue(worker);
     return () => worker.close();
   }, []);
   useEffect(() => {
+    // 查询档位期间终止旧请求的提交，但保留已显示图像，不能先请求原图。
+    if (key === "pending") return;
     if (!key) {
       // 无来源时清除交接历史，之后重新选图不恢复更早的背景。
       setState((previous) => previous.key || previous.image ? { key: "", image: null, error: null } : previous);
@@ -77,7 +81,7 @@ export function useSidebarBackgroundFit(source: BackgroundSource | null, config:
     }
     if (!queue) return;
     let alive = true;
-    const current = JSON.parse(key) as BackgroundFitRequest;
+    const current = JSON.parse(key) as FitInput;
     const timer = setTimeout(() => {
       void queue.request(current).then((image) => {
         if (alive && image) setState({ key, image, error: null });
@@ -89,7 +93,7 @@ export function useSidebarBackgroundFit(source: BackgroundSource | null, config:
   }, [key, queue, attempt]);
   return {
     size, dimensions,
-    image: source ? state.image : null,
+    image: source !== null ? state.image : null,
     error: key && state.key === key ? state.error : null,
     loading: Boolean(key && state.key !== key),
     retry: () => {

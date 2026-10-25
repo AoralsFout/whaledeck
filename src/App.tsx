@@ -24,6 +24,7 @@ import { EmptyState } from "./components/EmptyState";
 import { Toast } from "./components/Toast";
 import { WindowChrome } from "./components/WindowChrome";
 import { CloseDialog } from "./components/CloseDialog";
+import { CoverSelectionProvider } from "./components/CoverSelectionProvider";
 
 /**
  * 应用根组件：加载库 → 派生选中项 → 应用主题 → 首帧后显示窗口。
@@ -124,22 +125,24 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell flex h-full" data-navigation-open={navigationOpen} data-sidebar-auto-hide={settings?.theme.sidebarAutoHide ?? true}>
-      <WindowChrome coverEditor={coverEditor} coverDisabled={formOpen || settingsOpen || scanOpen || metaOpen} />
-      <SidebarNavigation open={navigationOpen} onOpenChange={setNavigationOpen} autoHide={settings?.theme.sidebarAutoHide ?? true} dialogOpen={formOpen || settingsOpen || scanOpen || metaOpen} />
-      <main id="main-content" tabIndex={-1} className="relative min-h-0 min-w-0 flex-1">
-        {selected ? <GameDetail game={selected} coverEditor={coverEditor} /> : <EmptyState onAdd={openNew} filtered={gameCount > 0} onReset={() => {
-          useLibrary.getState().setQuery("");
-          useLibrary.getState().setNav({ type: "all" });
-        }} />}
-      </main>
+    <CoverSelectionProvider game={selected}>
+      <div className="app-shell flex h-full" data-navigation-open={navigationOpen} data-sidebar-auto-hide={settings?.theme.sidebarAutoHide ?? true}>
+        <WindowChrome coverEditor={coverEditor} coverDisabled={formOpen || settingsOpen || scanOpen || metaOpen} />
+        <SidebarNavigation open={navigationOpen} onOpenChange={setNavigationOpen} autoHide={settings?.theme.sidebarAutoHide ?? true} dialogOpen={formOpen || settingsOpen || scanOpen || metaOpen} />
+        <main id="main-content" tabIndex={-1} className="relative min-h-0 min-w-0 flex-1">
+          {selected ? <GameDetail game={selected} coverEditor={coverEditor} /> : <EmptyState onAdd={openNew} filtered={gameCount > 0} onReset={() => {
+            useLibrary.getState().setQuery("");
+            useLibrary.getState().setNav({ type: "all" });
+          }} />}
+        </main>
 
-      {formOpen && <GameForm />}
-      {settingsOpen && <SettingsPanel />}
-      {scanOpen && <ScanDialog />}
-      {metaOpen && <MetaDialog />}
-      <Toast />
-      <CloseDialog />
-    </div>
+        {formOpen && <GameForm />}
+        {settingsOpen && <SettingsPanel />}
+        {scanOpen && <ScanDialog />}
+        {metaOpen && <MetaDialog />}
+        <Toast />
+        <CloseDialog />
+      </div>
+    </CoverSelectionProvider>
   );
 }

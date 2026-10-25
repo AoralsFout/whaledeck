@@ -14,6 +14,7 @@ import { memo, useMemo } from "react";
 import { SidebarBackground } from "./SidebarBackground";
 import { Brand } from "./Brand";
 import { GameIcon } from "./GameIcon";
+import { useCoverSelection } from "./CoverSelectionProvider";
 import { useLibrary } from "../store/useLibrary";
 import { useLibraryView } from "../store/useLibraryView";
 import type { Game, NavKey, SortKey } from "../types";
@@ -87,11 +88,12 @@ const LibraryList = memo(function LibraryList({ games, emptyLibrary, onNavigate 
 export const Sidebar = memo(function Sidebar({ onNavigate }: { onNavigate: () => void }) {
   const games = useLibrary((s) => s.games);
   const settings = useLibrary((s) => s.settings);
-  const { visible, selected } = useLibraryView();
+  const { visible } = useLibraryView();
+  const cover = useCoverSelection();
   const clearGlass = settings?.theme.sidebarClearGlass ?? false;
   const glass = Boolean(settings?.theme.sidebarGlass && !clearGlass);
-  const fitSource = settings ? sidebarBackgroundSource(settings.theme, selected?.coverFile) : null;
-  const fitted = useSidebarBackgroundFit(fitSource, settings?.theme.sidebarBackgroundFit ?? DEFAULT_BACKGROUND_FIT, glass);
+  const fitSource = settings ? sidebarBackgroundSource(settings.theme, cover.source) : null;
+  const fitted = useSidebarBackgroundFit(fitSource, settings?.theme.sidebarBackgroundFit ?? DEFAULT_BACKGROUND_FIT, glass, fitSource?.sourceKind === "superres" ? cover.revision : 0);
   // 图片和取景必须一起交接；原图回退会先居中，再跳到后台生成的取景。
   const displayedBackground = fitted.image?.url;
   const palette = useSidebarPalette(fitted.image, settings?.theme.sidebarTransparency ?? .52, clearGlass);

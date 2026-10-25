@@ -8,10 +8,11 @@ export const DEFAULT_BACKGROUND_FIT: Readonly<SidebarBackgroundFit> = {
   enabled: true, mode: "contain", positionX: 50, positionY: 50,
 };
 
-/** 自定义图片优先，磨砂与清晰背景均可使用当前游戏封面。 */
-export function sidebarBackgroundSource(theme: Theme, cover: string | null | undefined): BackgroundSource | null {
+/** 自定义图片优先；封面沿用共享选择，undefined 保留查询等待态而不误判成无图。 */
+export function sidebarBackgroundSource(theme: Theme, cover: { kind: "cover" | "superres"; file: string } | null | undefined): BackgroundSource | null | undefined {
   if (theme.sidebarBackgroundFile) return { sourceKind: "background", file: theme.sidebarBackgroundFile };
-  return (theme.sidebarGlass || theme.sidebarClearGlass) && cover ? { sourceKind: "cover", file: cover } : null;
+  if (!theme.sidebarGlass && !theme.sidebarClearGlass) return null;
+  return cover ? { sourceKind: cover.kind, file: cover.file } : cover;
 }
 
 /** 大窗口与高 DPR 统一按比例降到预算内，不因某一边钳制而改变构图。 */

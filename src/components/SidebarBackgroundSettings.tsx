@@ -8,6 +8,7 @@ import { DEFAULT_BACKGROUND_FIT, sidebarBackgroundSource } from "../lib/backgrou
 import { useSidebarBackgroundFit } from "../lib/useSidebarBackgroundFit";
 import { useAssetUrl } from "../lib/useAssetUrl";
 import { useLibrary } from "../store/useLibrary";
+import { useCoverSelection } from "./CoverSelectionProvider";
 import type { SidebarBackgroundFit, Theme } from "../types";
 
 const MODES = [
@@ -22,12 +23,12 @@ export function SidebarBackgroundSettings({ theme, imageActions }: { theme: Them
   const savedKey = JSON.stringify(saved);
   const [draft, setDraft] = useState<SidebarBackgroundFit>({ ...saved });
   const [saving, setSaving] = useState(false);
-  const cover = useLibrary((state) => state.games.find((game) => game.id === state.selectedId)?.coverFile);
+  const cover = useCoverSelection();
   const apply = useLibrary((state) => state.applySidebarBackgroundFit);
   const showToast = useLibrary((state) => state.showToast);
-  const source = sidebarBackgroundSource(theme, cover);
+  const source = sidebarBackgroundSource(theme, cover.source);
   const original = useAssetUrl(source?.sourceKind ?? "background", source?.file);
-  const fitted = useSidebarBackgroundFit(source, draft, Boolean(theme.sidebarGlass && !theme.sidebarClearGlass));
+  const fitted = useSidebarBackgroundFit(source, draft, Boolean(theme.sidebarGlass && !theme.sidebarClearGlass), source?.sourceKind === "superres" ? cover.revision : 0);
   useEffect(() => { setDraft(JSON.parse(savedKey) as SidebarBackgroundFit); }, [savedKey]);
   const dirty = JSON.stringify(draft) !== savedKey;
   // 请求尚未完成时用原图展示当前草稿，避免新参数套用到旧适配结果。
