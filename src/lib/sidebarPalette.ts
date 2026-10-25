@@ -7,7 +7,8 @@ type Region = { mean: Rgb; seed: Rgb | null; coverage: number };
 export type SidebarImageColors = { top: Region; all: Region };
 export type SidebarPalette = {
   dark: boolean; surface: Rgb; control: Rgb; selected: Rgb; hover: Rgb;
-  text: Rgb; muted: Rgb; primary: Rgb; onPrimary: Rgb; border: Rgb; favorite: Rgb; running: Rgb; panelAlpha: number;
+  controlOpacity: number; selectedOpacity: number; hoverOpacity: number;
+  text: Rgb; muted: Rgb; primary: Rgb; border: Rgb; selectedBorder: Rgb; favorite: Rgb; running: Rgb;
 };
 
 const BLACK: Rgb = [0, 0, 0];
@@ -80,12 +81,7 @@ export function analyzeSidebarPixels(pixels: Uint8ClampedArray, width: number, h
   return { top: region(pixels, 0, topEnd), all: region(pixels, 0, end) };
 }
 
-/** 同时覆盖黑白两端，保障透明留空、旧图退场和局部高亮下的文字对比度。 */
-export function panelBackgrounds(surface: Rgb, alpha: number): Rgb[] {
-  return [mix(BLACK, surface, alpha), mix(WHITE, surface, alpha)];
-}
-
-/** 背景合成影响明暗与色调；安全底色独立核验极值，不用平均色冒充对比度保证。 */
+/** 背景只决定明暗与合成校正；控件使用中性薄层，避免图片平均色污染所有表面。 */
 export function createSidebarPalette(colors: SidebarImageColors | null, options: {
   base: Rgb; fallback: Rgb; transparency: number; clear: boolean;
 }): SidebarPalette {
@@ -93,49 +89,44 @@ export function createSidebarPalette(colors: SidebarImageColors | null, options:
   const top = colors?.top;
   const average = top ? mix(options.base, top.mean, top.coverage) : options.base;
   const background = mix(options.base, average, amount);
-  const dark = luminance(background) < .32;
   const seed = mix(options.fallback, top?.seed ?? colors?.all.seed ?? options.fallback, amount);
-  // 少量图片色调融入中性色，控制高饱和图片对控件表面的影响。
-  const tint = mix(options.base, seed, amount * .65);
-  const surface = mix(dark ? [12, 17, 25] : [250, 251, 253], tint, .12);
-  const control = mix(surface, dark ? WHITE : BLACK, .055);
-  const primary = readable(mix(seed, dark ? WHITE : BLACK, dark ? .32 : .20), [surface, control], 4.7);
-  const selected = mix(surface, primary, .15);
-  const hover = mix(surface, primary, .07);
-  const surfaces = [surface, control, selected, hover];
+  const dark = colorContrast(WHITE, background) >= colorContrast(BLACK, background);
+  const surface: Rgb = dark ? [24, 28, 34] : [250, 251, 253];
+  const control = surface;
+  const controlOpacity = dark ? .22 : .38;
+  const selectedOpacity = dark ? .34 : .52;
+  const hoverOpacity = dark ? .28 : .44;
+  const composedControl = mix(background, control, controlOpacity);
+  const primary = readable(mix(seed, dark ? WHITE : BLACK, dark ? .32 : .20), [surface, composedControl], 4.7);
+  const selected = mix(surface, primary, .035);
+  const hover = surface;
+  // 保留原始填色与采样处的实际合成色两份约束，CSS 必须使用相同 alpha 绘制。
+  const surfaces = [surface, selected, composedControl, mix(background, selected, selectedOpacity), mix(background, hover, hoverOpacity)];
   const text = readable(dark ? [245, 247, 251] : [20, 27, 38], surfaces, 4.7);
   const muted = readable(mix(surface, text, .76), surfaces, 4.7);
-  let panelAlpha = 1;
-  for (let i = 44; i <= 100; i++) {
-    const backgrounds = panelBackgrounds(surface, i / 100);
-    if (Math.min(minContrast(text, backgrounds), minContrast(muted, backgrounds)) >= 4.7) {
-      panelAlpha = i / 100; break;
-    }
-  }
-  const allSurfaces = [...surfaces, ...panelBackgrounds(surface, panelAlpha)];
-  const safePrimary = readable(primary, allSurfaces, 4.7);
+  const safePrimary = readable(primary, surfaces, 4.7);
   return {
-    dark, surface, control, selected, hover, text, muted, panelAlpha,
+    dark, surface, control, selected, hover, controlOpacity, selectedOpacity, hoverOpacity, text, muted,
     primary: safePrimary,
-    onPrimary: colorContrast(safePrimary, BLACK) > colorContrast(safePrimary, WHITE) ? BLACK : WHITE,
-    border: readable(mix(surface, text, .45), allSurfaces, 3.2),
-    favorite: readable([255, 209, 102], allSurfaces, 3.2),
-    running: readable([126, 231, 200], allSurfaces, 3.2),
+    border: mix(control, text, .18),
+    selectedBorder: mix(control, safePrimary, .35),
+    favorite: readable([255, 209, 102], surfaces, 3.2),
+    running: readable([126, 231, 200], surfaces, 3.2),
   };
 }
 
 /** 只写入侧栏作用域；背景图与整幅遮罩使用独立变量，防止反馈改变取色依据。 */
 export function sidebarPaletteStyle(palette: SidebarPalette): Record<string, string> {
   const rgb = (value: Rgb) => `rgb(${value.join(", ")})`;
+  const rgba = (value: Rgb, opacity: number) => `rgba(${value.join(", ")}, ${opacity})`;
   return {
-    "--surface": rgb(palette.surface), "--surface-2": rgb(palette.control),
+    "--surface": rgb(palette.surface), "--surface-2": rgba(palette.control, palette.controlOpacity),
     "--text": rgb(palette.text), "--text-dim": rgb(palette.muted),
     "--primary": rgb(palette.primary), "--primary-ink": rgb(palette.primary),
     "--primary-rgb": palette.primary.join(", "), "--accent-rgb": palette.primary.join(", "),
-    "--border": rgb(palette.border),
-    "--sidebar-panel": `rgba(${palette.surface.join(", ")}, ${palette.panelAlpha})`,
-    "--sidebar-selected": rgb(palette.selected), "--sidebar-hover": rgb(palette.hover),
-    "--sidebar-on-primary": rgb(palette.onPrimary),
+    "--border": rgba(palette.border, .48),
+    "--sidebar-selected": rgba(palette.selected, palette.selectedOpacity), "--sidebar-hover": rgba(palette.hover, palette.hoverOpacity),
+    "--sidebar-selected-border": rgba(palette.selectedBorder, .60),
     "--sidebar-favorite": rgb(palette.favorite), "--sidebar-running": rgb(palette.running),
     "--sidebar-color-scheme": palette.dark ? "dark" : "light",
   };

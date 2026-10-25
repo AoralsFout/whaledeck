@@ -576,20 +576,18 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
   :is(.search-clear, .settings-category-remove):enabled:hover { background-color: rgba(var(--primary-rgb), .12); }
 }
 .library-item[aria-current="true"] { background: rgba(var(--primary-rgb), .13); border-color: rgba(var(--primary-rgb), .3); }
-/* 局部承载表面保护透明图片及交接中的极端明暗；不覆盖整幅背景。 */
+/* 仅控件及交互状态保留独立底色，普通区域直接透出侧栏图片。 */
 .library-sidebar[data-adaptive-color="true"] { color: var(--text); color-scheme: var(--sidebar-color-scheme); }
-.library-sidebar[data-adaptive-color="true"] :is(.sidebar-controls, .sidebar-footer, .library-item, .sidebar-empty) { background: var(--sidebar-panel); }
 .sidebar-controls { flex-shrink: 0; }
 .library-sidebar[data-adaptive-color="true"] .sidebar-controls { padding-bottom: 10px; }
 .library-sidebar[data-adaptive-color="true"] .sidebar-footer { flex-shrink: 0; }
-.library-sidebar[data-adaptive-color="true"] .library-item { border-color: var(--border); }
-.library-sidebar[data-adaptive-color="true"] :is(.library-item[aria-current="true"], .filter-chip[aria-pressed="true"]) { background: var(--sidebar-selected); border-color: var(--primary); }
-.library-sidebar[data-adaptive-color="true"] .btn-primary { background: var(--primary); color: var(--sidebar-on-primary); }
+.library-sidebar[data-adaptive-color="true"] :is(.library-item[aria-current="true"], .filter-chip[aria-pressed="true"]) { background: var(--sidebar-selected); border-color: var(--sidebar-selected-border); }
+.library-sidebar[data-adaptive-color="true"] .btn-primary { background: var(--sidebar-selected); color: var(--primary-ink); border-color: var(--sidebar-selected-border); }
 .library-sidebar[data-adaptive-color="true"] .input::placeholder { color: var(--text-dim); }
 /* 立即交接文字与表面，避免两个合格配色插值时短暂失去对比度。 */
 .library-sidebar[data-adaptive-color="true"] button { transition-property: transform, box-shadow, opacity; }
 @media (hover: hover) and (pointer: fine) {
-  .library-sidebar[data-adaptive-color="true"] .library-item:enabled:hover:not([aria-current="true"]) { background: var(--sidebar-hover); }
+  .library-sidebar[data-adaptive-color="true"] .library-item:enabled:hover:not([aria-current="true"]) { background: var(--sidebar-hover); border-color: var(--border); }
   .library-sidebar[data-adaptive-color="true"] :is(.filter-chip, .btn-primary):enabled:hover { filter: none; }
 }
 .library-item:enabled:active { background: rgba(var(--primary-rgb), .19); }

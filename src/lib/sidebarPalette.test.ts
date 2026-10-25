@@ -3,7 +3,7 @@
  * 不渲染组件；对应文档：docs/前端实现.md §4.2.1、§6。
  */
 import { describe, expect, it } from "vitest";
-import { analyzeSidebarPixels, colorContrast, createSidebarPalette, panelBackgrounds, type Rgb } from "./sidebarPalette";
+import { analyzeSidebarPixels, colorContrast, createSidebarPalette, type Rgb } from "./sidebarPalette";
 
 function pixels(colors: number[][]): Uint8ClampedArray { return new Uint8ClampedArray(colors.flat()); }
 const options = { base: [16, 26, 46] as Rgb, fallback: [79, 214, 232] as Rgb, transparency: 1, clear: false };
@@ -43,28 +43,26 @@ describe("侧栏动态配色", () => {
       .toEqual(createSidebarPalette(other, { ...options, transparency: 0 }));
   });
 
-  it("极端颜色、深浅主题和各档透明度下，正文、次文字、强调文字和描边满足对比度", () => {
+  it("极端颜色、深浅主题和各档透明度下，文字、焦点色和状态标识满足对比度", () => {
     for (const base of [[16, 26, 46], [255, 255, 255]] as Rgb[]) {
       for (const red of [0, 64, 128, 192, 255]) for (const green of [0, 128, 255]) for (const blue of [0, 128, 255]) {
         const samples = analyzeSidebarPixels(pixels([[red, green, blue, 255], [255 - red, 255 - green, 255 - blue, 90]]), 1, 2, .5);
         for (const transparency of [0, .25, .52, .75, 1]) {
           const palette = createSidebarPalette(samples, { ...options, base, transparency });
-          const backgrounds = [palette.surface, palette.control, palette.selected, palette.hover, ...panelBackgrounds(palette.surface, palette.panelAlpha)];
+          const backgrounds = [palette.surface, palette.control, palette.selected, palette.hover];
           for (const background of backgrounds) {
             for (const text of [palette.text, palette.muted, palette.primary]) expect(colorContrast(text, background)).toBeGreaterThanOrEqual(4.5);
-            expect(colorContrast(palette.border, background)).toBeGreaterThanOrEqual(3);
             expect(colorContrast(palette.favorite, background)).toBeGreaterThanOrEqual(3);
             expect(colorContrast(palette.running, background)).toBeGreaterThanOrEqual(3);
           }
-          expect(colorContrast(palette.primary, palette.onPrimary)).toBeGreaterThanOrEqual(4.5);
         }
       }
     }
   });
 
-  it("取色失败使用保守主题配色，仍能保护未知的黑白背景", () => {
+  it("取色失败使用保守主题配色，保留控件表面的文字对比度", () => {
     const palette = createSidebarPalette(null, options);
-    for (const background of panelBackgrounds(palette.surface, palette.panelAlpha)) {
+    for (const background of [palette.surface, palette.control, palette.selected, palette.hover]) {
       expect(colorContrast(palette.text, background)).toBeGreaterThanOrEqual(4.5);
       expect(colorContrast(palette.muted, background)).toBeGreaterThanOrEqual(4.5);
     }

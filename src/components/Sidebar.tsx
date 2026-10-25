@@ -124,14 +124,13 @@ export const Sidebar = memo(function Sidebar({ onNavigate }: { onNavigate: () =>
     <aside
       id="library-sidebar"
       aria-label="游戏库"
-      className="library-sidebar flex shrink-0 flex-col border-r"
+      className="library-sidebar flex shrink-0 flex-col"
       data-has-background={Boolean(displayedBackground)}
       data-glass={glass}
       data-clear-glass={clearGlass}
       data-adaptive-color={Boolean(palette)}
       style={{
         ...palette,
-        borderColor: "var(--border)",
       }}
     >
       <SidebarBackground image={fitted.image} mode={settings?.theme.detailBackgroundTransition ?? "blur"} />
@@ -237,14 +236,13 @@ export const Sidebar = memo(function Sidebar({ onNavigate }: { onNavigate: () =>
       <LibraryList games={visible} emptyLibrary={games.length === 0} onNavigate={onNavigate} />
 
       <div
-        className="sidebar-footer flex items-center justify-between border-t px-4 py-2.5"
-        style={{ borderColor: "var(--border)" }}
+        className="sidebar-footer flex items-center justify-between px-4 py-2.5"
       >
         <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>
           {visible.length} / {games.length} 个项目
         </span>
         <button
-          className="btn btn-ghost !px-2 !py-1 text-[10px]"
+          className="btn !px-2 !py-1 text-[10px]"
           onClick={openSettings}
         >
           <Settings size={11} />
