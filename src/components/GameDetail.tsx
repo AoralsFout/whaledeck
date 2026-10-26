@@ -208,52 +208,51 @@ function GameDetailContent({ game, enhanceStore }: { game: Game; enhanceStore: R
         aria-label="游戏详情"
       >
         {/* 标题 + 图标 */}
-        <div className="detail-heading mb-4 flex shrink-0 items-stretch gap-3">
-          <div className="detail-icon">
-            <GameIcon
-              file={game.iconFile}
-              size={76}
-              className="absolute inset-0 h-full w-full rounded-xl object-contain"
-              style={{
-                background: "rgba(8,13,26,.45)",
-                border: "0.5px solid rgba(255,255,255,.14)",
-                backdropFilter: "blur(8px)",
-              }}
-            />
-          </div>
-          <div className="min-w-0">
+        <div className="detail-heading mb-4 shrink-0">
+          <div className="detail-title-row flex items-stretch gap-3 text-3xl">
+            <div className="detail-icon">
+              <GameIcon
+                file={game.iconFile}
+                className="absolute inset-0 h-full w-full rounded-xl object-contain"
+                style={{
+                  background: "rgba(8,13,26,.45)",
+                  border: "0.5px solid rgba(255,255,255,.14)",
+                  backdropFilter: "blur(8px)",
+                }}
+              />
+            </div>
             <h1
-              className="game-title m-0 text-3xl font-semibold text-white"
+              className="game-title m-0 min-w-0 flex-1 font-semibold text-white"
               title={game.title}
               style={{ textShadow: "0 2px 24px rgba(0,0,0,.65)" }}
             >
               <TransitionText text={game.title} />
             </h1>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <span
+              className="chip"
+              style={{
+                background: "rgba(8,13,26,.55)",
+                borderColor: "rgba(255,255,255,.16)",
+                color: "#e3ecff",
+              }}
+            >
+              <TransitionText text={game.category || "未分类"} />
+            </span>
+            {game.tags.map((tag) => (
               <span
+                key={tag}
                 className="chip"
                 style={{
-                  background: "rgba(8,13,26,.55)",
-                  borderColor: "rgba(255,255,255,.16)",
-                  color: "#e3ecff",
+                  background: "rgba(8,13,26,.45)",
+                  borderColor: "rgba(255,255,255,.12)",
+                  color: "#c9d8f7",
                 }}
               >
-                <TransitionText text={game.category || "未分类"} />
+                <TransitionText text={tag} />
               </span>
-              {game.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="chip"
-                  style={{
-                    background: "rgba(8,13,26,.45)",
-                    borderColor: "rgba(255,255,255,.12)",
-                    color: "#c9d8f7",
-                  }}
-                >
-                  <TransitionText text={tag} />
-                </span>
-              ))}
-            </div>
+            ))}
           </div>
         </div>
 

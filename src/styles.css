@@ -706,7 +706,8 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 .detail-content, .detail-footer { padding-inline: var(--space-page); }
 .detail-content { padding-top: 80px; }
 .detail-disclosure:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-.detail-icon { position: relative; flex: 0 0 76px; min-height: 76px; }
+.detail-title-row { line-height: 1.25; }
+.detail-icon { position: relative; flex: 0 0 1lh; min-height: 1lh; }
 .detail-scroll { overflow-x: hidden; overflow-y: hidden; overscroll-behavior: contain; }
 .game-title { overflow-wrap: anywhere; line-height: 1.25; text-wrap: balance; }
 .detail-panels {
@@ -759,7 +760,7 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
   .detail-grid > section:nth-child(n + 3) { grid-column: 1 / -1; }
 }
 @container (max-width: 560px) {
-  .game-title { font-size: 26px; }
+  .detail-title-row { font-size: 26px; }
   .detail-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
   .detail-actions > .btn-primary { flex-basis: 100%; }
   .detail-footer { padding-bottom: 16px; }
