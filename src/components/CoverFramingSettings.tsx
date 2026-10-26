@@ -9,6 +9,7 @@ import { coverFraming, coverFramingStyle, dragCoverFraming } from "../lib/coverF
 import { api } from "../lib/ipc";
 import { useLibrary } from "../store/useLibrary";
 import type { CoverFraming, Game } from "../types";
+import { RangeSlider } from "./RangeSlider";
 
 /** 按游戏与文件重新挂载编辑器，切换时丢弃未确认草稿。 */
 export function CoverFramingSettings() {
@@ -107,12 +108,12 @@ function FramingEditor({ game, onSaving }: { game: Game; onSaving: (saving: bool
     </div>
     <fieldset className="cover-framing-controls" disabled={saving || loadState !== "ready"}>
       <legend className="sr-only">调整封面取景</legend>
-      <label htmlFor="cover-framing-x">水平位置 <output>{Math.round(draft.positionX)}%</output></label>
-      <input id="cover-framing-x" type="range" min="0" max="100" step="1" value={draft.positionX} onChange={e => patch({ positionX: Number(e.target.value) })} />
-      <label htmlFor="cover-framing-y">垂直位置 <output>{Math.round(draft.positionY)}%</output></label>
-      <input id="cover-framing-y" type="range" min="0" max="100" step="1" value={draft.positionY} onChange={e => patch({ positionY: Number(e.target.value) })} />
-      <label htmlFor="cover-framing-zoom">缩放 <output>{Math.round(draft.zoom * 100)}%</output></label>
-      <input id="cover-framing-zoom" type="range" min="100" max="300" step="1" value={Math.round(draft.zoom * 100)} onChange={e => patch({ zoom: Number(e.target.value) / 100 })} />
+      <label htmlFor="cover-framing-x">水平位置 <output htmlFor="cover-framing-x">{Math.round(draft.positionX)}%</output></label>
+      <RangeSlider id="cover-framing-x" min={0} max={100} step={1} value={draft.positionX} aria-valuetext={`${Math.round(draft.positionX)}%`} onChange={e => patch({ positionX: Number(e.target.value) })} />
+      <label htmlFor="cover-framing-y">垂直位置 <output htmlFor="cover-framing-y">{Math.round(draft.positionY)}%</output></label>
+      <RangeSlider id="cover-framing-y" min={0} max={100} step={1} value={draft.positionY} aria-valuetext={`${Math.round(draft.positionY)}%`} onChange={e => patch({ positionY: Number(e.target.value) })} />
+      <label htmlFor="cover-framing-zoom">缩放 <output htmlFor="cover-framing-zoom">{Math.round(draft.zoom * 100)}%</output></label>
+      <RangeSlider id="cover-framing-zoom" min={100} max={300} step={1} value={Math.round(draft.zoom * 100)} aria-valuetext={`${Math.round(draft.zoom * 100)}%`} onChange={e => patch({ zoom: Number(e.target.value) / 100 })} />
       <div className="flex flex-wrap gap-2">
         <button className="btn btn-ghost" onClick={() => setDraft(coverFraming({ coverFile: game.coverFile }))}><RotateCcw size={14} aria-hidden="true" />恢复居中</button>
         <button className="btn" disabled={!dirty} onClick={() => setDraft(saved)}>取消修改</button>

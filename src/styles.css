@@ -371,6 +371,71 @@ select {
   color: color-mix(in srgb, var(--text-dim) 75%, transparent);
 }
 
+/* 保留原生 range 的操作语义；WebView2 与 Firefox 分别声明伪元素，避免选择器互相失效。 */
+.range-slider {
+  --range-color: var(--primary-ink);
+  --range-rest: color-mix(in srgb, var(--text-dim) 48%, var(--surface));
+  --range-halo: transparent;
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+.range-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--range-color) var(--range-fill), var(--range-rest) var(--range-fill));
+}
+.range-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--range-color) var(--range-fill), var(--range-rest) var(--range-fill));
+}
+.range-slider::-webkit-slider-thumb {
+  appearance: none;
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  border: 2px solid var(--range-color);
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / .18), 0 0 0 5px var(--range-halo);
+  transition: box-shadow var(--motion-fast) ease;
+}
+.range-slider::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--range-color);
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / .18), 0 0 0 5px var(--range-halo);
+  transition: box-shadow var(--motion-fast) ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .range-slider:enabled:hover { --range-halo: color-mix(in srgb, var(--range-color) 14%, transparent); }
+}
+.range-slider:enabled:active { --range-halo: color-mix(in srgb, var(--range-color) 24%, transparent); cursor: grabbing; }
+.range-slider:focus-visible { --range-halo: color-mix(in srgb, var(--range-color) 20%, transparent); }
+.range-slider:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 700px), (pointer: coarse) {
+  .range-slider { height: 44px; }
+}
+@media (forced-colors: active) {
+  .range-slider { --range-color: Highlight; --range-rest: GrayText; forced-color-adjust: none; }
+  .range-slider::-webkit-slider-thumb { background: Canvas; box-shadow: none; }
+  .range-slider::-moz-range-thumb { background: Canvas; box-shadow: none; }
+  .range-slider:focus-visible { outline-color: Highlight; }
+}
+
 .chip {
   display: inline-flex;
   align-items: center;
@@ -561,7 +626,6 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 .sidebar-fit-info p { margin: 8px 0 0; font-variant-numeric: tabular-nums; }
 .sidebar-fit-position { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .sidebar-fit-position > .btn { justify-self: start; margin-top: 4px; }
-.sidebar-fit-position input { width: 100%; min-width: 0; accent-color: var(--primary); }
 .sidebar-fit-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 16px; border-top: 1px solid var(--border); }
 .sidebar-fit-actions > .hint { margin-right: auto; }
 .library-sidebar .sidebar-search { padding: 8px 32px; font-size: 12px; }
@@ -785,7 +849,6 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 .cover-framing-controls { display: grid; gap: 10px; min-width: 0; padding: 0; margin: 0; border: 0; }
 .cover-framing-controls label { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
 .cover-framing-controls output { color: var(--text-dim); font-variant-numeric: tabular-nums; }
-.cover-framing-controls input { width: 100%; accent-color: var(--primary); }
 .cover-framing-controls > div { margin-top: 8px; }
 .close-behavior-option {
   display: grid;

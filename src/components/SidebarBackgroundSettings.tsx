@@ -10,6 +10,7 @@ import { useAssetUrl } from "../lib/useAssetUrl";
 import { useLibrary } from "../store/useLibrary";
 import { useCoverSelection } from "./CoverSelectionProvider";
 import type { SidebarBackgroundFit, Theme } from "../types";
+import { RangeSlider } from "./RangeSlider";
 
 const MODES = [
   { value: "contain", label: "完整显示", hint: "保留全图，空余区域显示底色" },
@@ -67,9 +68,9 @@ export function SidebarBackgroundSettings({ theme, imageActions }: { theme: Them
           </div>
           {draft.mode === "cover" && <fieldset className="sidebar-fit-position" disabled={!source}>
             <label className="sidebar-control-label" htmlFor="sidebar-fit-x"><span>水平位置</span><output htmlFor="sidebar-fit-x">{draft.positionX}%</output></label>
-            <input id="sidebar-fit-x" type="range" min="0" max="100" value={draft.positionX} onChange={(event) => patch({ positionX: Number(event.target.value) })} />
+            <RangeSlider id="sidebar-fit-x" min={0} max={100} value={draft.positionX} aria-valuetext={`${draft.positionX}%`} onChange={(event) => patch({ positionX: Number(event.target.value) })} />
             <label className="sidebar-control-label" htmlFor="sidebar-fit-y"><span>垂直位置</span><output htmlFor="sidebar-fit-y">{draft.positionY}%</output></label>
-            <input id="sidebar-fit-y" type="range" min="0" max="100" value={draft.positionY} onChange={(event) => patch({ positionY: Number(event.target.value) })} />
+            <RangeSlider id="sidebar-fit-y" min={0} max={100} value={draft.positionY} aria-valuetext={`${draft.positionY}%`} onChange={(event) => patch({ positionY: Number(event.target.value) })} />
             <button type="button" className="btn btn-ghost" disabled={draft.positionX === 50 && draft.positionY === 50} onClick={() => patch({ positionX: 50, positionY: 50 })}><RotateCcw size={13} aria-hidden="true" />居中</button>
           </fieldset>}
           {source && <p className="hint m-0">预览仅展示取景，应用后生效。</p>}
