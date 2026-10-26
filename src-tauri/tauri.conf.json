@@ -25,7 +25,7 @@
         "decorations": false,
         "transparent": true,
         "backgroundColor": "#00000000",
-        "shadow": true,
+        "shadow": false,
         "theme": "Dark"
       }
     ],

@@ -39,6 +39,8 @@
   --sidebar-image-primary-rgb: var(--primary-rgb);
   --sidebar-image-accent-rgb: var(--accent-rgb);
   --window-radius: 12px;
+  --window-border-width: 1px;
+  --window-border: rgb(143 163 199 / 35%);
   --app-color-scheme: dark;
   /* 根画布保持默认配色，避免 WebView 为透明区域填充深色底。 */
   color-scheme: normal;
@@ -54,6 +56,7 @@
   --text-dim: #5b6f8f;
   --primary-ink: color-mix(in srgb, var(--primary) 42%, #12203a);
   --danger: #b32349;
+  --window-border: rgb(18 32 58 / 22%);
   --app-color-scheme: light;
 }
 
@@ -70,6 +73,7 @@ body {
 
 :root[data-window-expanded="true"] {
   --window-radius: 0px;
+  --window-border-width: 0px;
 }
 
 body {
@@ -94,6 +98,21 @@ body {
   clip-path: inset(0 round var(--window-radius));
   isolation: isolate;
 }
+
+/* 独立覆盖层不挤压内容；dialog 进入顶层后由自身续画描边，避免遮罩压暗边缘。 */
+body::after,
+.modal::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  box-sizing: border-box;
+  border: var(--window-border-width) solid var(--window-border);
+  border-radius: var(--window-radius);
+  pointer-events: none;
+}
+
+body:has(.modal[open])::after { display: none; }
 
 .window-drag-region {
   position: fixed;
