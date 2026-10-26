@@ -213,7 +213,7 @@ export const Sidebar = memo(function Sidebar({ onNavigate }: { onNavigate: () =>
                 style={{ color: "var(--text-dim)" }}
               />
               <select
-                className="input sidebar-sort cursor-pointer appearance-none"
+                className="input sidebar-sort"
                 value={sort}
                 onChange={(e) => void setSort(e.target.value as SortKey)}
                 title="排序方式"

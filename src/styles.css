@@ -371,6 +371,98 @@ select {
   color: color-mix(in srgb, var(--text-dim) 75%, transparent);
 }
 
+/* 只增强原生单选下拉框；旧 WebView 保留系统菜单，不接管键盘或选择状态。 */
+select:where(:not([multiple]):not([size])) option {
+  background: var(--surface);
+  color: var(--text);
+}
+select:disabled { opacity: .45; cursor: not-allowed; }
+select.input:focus-visible {
+  outline: 2px solid var(--primary-ink);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+@supports (appearance: base-select) and selector(::picker(select)) {
+  /* 强制颜色模式继续交由系统绘制，避免装饰色覆盖系统可读配色。 */
+  @media not (forced-colors: active) {
+    select:where(:not([multiple]):not([size])),
+    select:where(:not([multiple]):not([size]))::picker(select) {
+      appearance: base-select;
+    }
+    select:where(:not([multiple]):not([size])) {
+      align-items: center;
+      gap: 10px;
+      text-align: start;
+    }
+    select::picker-icon {
+      content: "";
+      width: 6px;
+      height: 6px;
+      flex-shrink: 0;
+      margin-inline-start: auto;
+      margin-inline-end: 2px;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      color: var(--text-dim);
+      transform: translateY(-2px) rotate(45deg);
+    }
+    select:open::picker-icon { transform: translateY(2px) rotate(225deg); }
+    select::picker(select) {
+      inline-size: max(128px, anchor-size(self-inline));
+      min-inline-size: 0;
+      max-inline-size: calc(100vw - 24px);
+      max-block-size: min(320px, 70dvh);
+      margin-block: 6px;
+      padding: 4px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 8px 28px rgb(0 0 0 / .2);
+      font: inherit;
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+    select option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-block-size: 34px;
+      padding: 7px 10px;
+      border-radius: 7px;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      cursor: pointer;
+    }
+    select option:checked {
+      background: color-mix(in srgb, var(--primary-ink) 12%, var(--surface));
+      font-weight: 600;
+    }
+    select option:focus-visible {
+      outline: 1px solid var(--primary-ink);
+      outline-offset: -1px;
+      background: color-mix(in srgb, var(--primary-ink) 18%, var(--surface));
+    }
+    @media (hover: hover) and (pointer: fine) {
+      select.input:enabled:hover { border-color: var(--primary-ink); }
+      select option:enabled:hover {
+        outline: 1px solid var(--primary-ink);
+        outline-offset: -1px;
+        background: color-mix(in srgb, var(--primary-ink) 18%, var(--surface));
+      }
+    }
+    select option::checkmark {
+      order: 1;
+      margin-inline-start: auto;
+      color: var(--primary-ink);
+    }
+    select option:disabled { color: var(--text-dim); cursor: not-allowed; }
+    @media (max-width: 700px), (pointer: coarse) {
+      select option { min-block-size: 44px; }
+    }
+  }
+}
+
 /* 保留原生 range 的操作语义；WebView2 与 Firefox 分别声明伪元素，避免选择器互相失效。 */
 .range-slider {
   --range-color: var(--primary-ink);
@@ -738,7 +830,6 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
 .detail-actions > .btn-primary { min-width: 156px; font-variant-numeric: tabular-nums; }
 .detail-actions .btn-icon-glass { min-width: 40px; min-height: 40px; }
 .detail-preset-select { height: 40px; padding: 0 8px; }
-.detail-preset-select option { background: var(--surface); color: var(--text); }
 .action-tooltip {
   position: fixed;
   z-index: 70;
