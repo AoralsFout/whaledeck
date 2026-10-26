@@ -518,8 +518,8 @@ export function SettingsPanel() {
         className="settings-footer flex items-center justify-between border-t"
         style={{ borderColor: "var(--border)" }}
       >
-        <span className="hint">{tab === "covers" ? "取景需点「确认保存取景」；关闭设置会丢弃未保存的修改" : "普通设置自动保存；背景适配需点应用"}</span>
-        <button className="btn btn-primary" onClick={closeSettings}>
+        {(tab !== "covers" || !settings.theme.backgroundFile) && <span className="hint">{tab === "covers" ? "取景需点「确认保存取景」；关闭设置会丢弃未保存的修改" : "普通设置自动保存；背景适配需点应用"}</span>}
+        <button className="btn btn-primary ml-auto" onClick={closeSettings}>
           完成
         </button>
       </div>

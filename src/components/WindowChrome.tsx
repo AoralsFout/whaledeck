@@ -18,6 +18,7 @@ const appWindow = isTauri() ? getCurrentWindow() : null;
 /** 窗口控制条与封面快捷入口；原生窗口按钮仅在 Tauri 环境启用。 */
 export function WindowChrome({ coverEditor, coverDisabled = true }: { coverEditor?: CoverQuickEditor; coverDisabled?: boolean }) {
   const [maximized, setMaximized] = useState(false);
+  const customBackground = useLibrary(s => Boolean(s.settings?.theme.backgroundFile));
 
   useEffect(() => {
     if (!appWindow) return;
@@ -65,7 +66,7 @@ export function WindowChrome({ coverEditor, coverDisabled = true }: { coverEdito
       {/* 透明拖动区不占布局空间，双击由 Tauri 切换最大化。 */}
       <div className="window-drag-region" data-tauri-drag-region aria-hidden="true" />
       <div className="window-chrome-actions">
-        <CoverFramingControl editor={coverEditor} disabled={coverDisabled} />
+        {!customBackground && <CoverFramingControl editor={coverEditor} disabled={coverDisabled} />}
         <div className="window-controls" role="group" aria-label="窗口控制">
           <button
             type="button"

@@ -11,19 +11,21 @@ import { useLibrary } from "../store/useLibrary";
 import type { CoverFraming, Game } from "../types";
 import { RangeSlider } from "./RangeSlider";
 
-/** 按游戏与文件重新挂载编辑器，切换时丢弃未确认草稿。 */
+/** 全局背景启用时卸载编辑器；按游戏与文件重新挂载，切换时丢弃未确认草稿。 */
 export function CoverFramingSettings() {
   const games = useLibrary(s => s.games);
   const selectedId = useLibrary(s => s.selectedId);
+  const customBackground = useLibrary(s => Boolean(s.settings?.theme.backgroundFile));
   const [id, setId] = useState(selectedId ?? games[0]?.id ?? "");
   const [saving, setSaving] = useState(false);
   const game = games.find(g => g.id === id) ?? games[0];
   return <section className="cover-framing-settings">
     <div>
       <h3 className="m-0 flex items-center gap-2 text-[14px] font-semibold"><Crop size={16} aria-hidden="true" />封面显示取景</h3>
-      <p className="hint mt-2 mb-0">调整游戏详情背景的截取范围，原图完整保留。每款游戏单独保存，侧栏仍使用原有背景适配。</p>
+      {!customBackground && <p className="hint mt-2 mb-0">调整游戏详情背景的截取范围，原图完整保留。每款游戏单独保存，侧栏仍使用原有背景适配。</p>}
     </div>
-    {!game ? <p className="hint">请先加入游戏并应用一张封面。</p> : <>
+    {customBackground ? <p className="hint m-0" role="status">已启用全局背景图，主区不再显示游戏封面，因此暂时隐藏封面取景设置。请到「设置 → 外观 → 背景图」清除图片后再调整；已保存的封面取景会保留。</p>
+      : !game ? <p className="hint">请先加入游戏并应用一张封面。</p> : <>
       <div>
         <label className="label" htmlFor="cover-framing-game">选择游戏</label>
         <select id="cover-framing-game" className="input" value={game.id} disabled={saving} onChange={e => setId(e.target.value)}>
