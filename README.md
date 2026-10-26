@@ -4,7 +4,8 @@
 
 WhaleDeck 是一个 Windows 桌面应用（Tauri 2 + React 19 + TypeScript）：核心功能不依赖网络，数据只存本机，不上传、不碰你的文件和存档（手动备份除外）；只有主动使用的「联网补全」会访问公开接口获取数据。
 
-![WhaleDeck 界面（示例数据）](docs/screenshot.png)
+![WhaleDeck 界面（示例数据）](docs/sc-l.png)
+![WhaleDeck 界面（示例数据）](docs/sc-d.png)
 
 ## 功能
 
