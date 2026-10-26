@@ -85,6 +85,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
  * 运行计时只做展示，真正结算在 Rust 监控线程；备份状态由独立 store 管理。
  */
 export const GameDetail = memo(function GameDetail({ game, coverEditor }: { game: Game; coverEditor: CoverQuickEditor }) {
+  const customBackground = useLibrary(s => Boolean(s.settings?.theme.backgroundFile));
   const backgroundTransition = useLibrary(s => s.settings?.theme.detailBackgroundTransition ?? "blur");
   const textTransition = useLibrary(s => s.settings?.theme.detailTextTransition ?? "fade");
   const framingDraft = useStore(coverEditor, state => state.draft);
@@ -96,20 +97,21 @@ export const GameDetail = memo(function GameDetail({ game, coverEditor }: { game
   const [artwork] = useState(() => createCoverArtwork());
   const frame = useStore(artwork, state => state.frame);
   useEffect(() => () => artwork.getState().dispose(), [artwork]);
-  // 先保留已显示的图像及其取景；只对选定资源解码，成功后一起替换。
+  // 自定义背景由 App 绘制；清空封面目标使旧解码失效，避免遮住用户背景。
+  // 使用项目封面时，仍保留已显示的图像及其取景，解码成功后一起替换。
   useLayoutEffect(() => {
-    artwork.getState().update(scope, !game.coverFile ? null : coverSource ?? undefined, framing, () => {
+    artwork.getState().update(scope, customBackground || !game.coverFile ? null : coverSource ?? undefined, framing, () => {
       if (coverSource?.kind === "superres") enhanceStore.getState().rejectFile(enhancement.preset, coverSource.file);
       else showToast("error", "封面加载失败，请重新选择封面或切换游戏后重试");
     });
-  }, [artwork, scope, game.coverFile, coverSource?.kind, coverSource?.file,
+  }, [artwork, scope, customBackground, game.coverFile, coverSource?.kind, coverSource?.file,
     framing.file, framing.positionX, framing.positionY, framing.zoom, enhanceStore, enhancement.preset, showToast]);
   // scope 的首项是游戏 id；等待解码时仍按旧图身份展示，不能提前标成新游戏触发动画。
   const artworkGameId = frame ? (JSON.parse(frame.scope) as string[])[0] : game.id;
 
   return (
     <div className="game-detail relative flex h-full flex-col overflow-hidden">
-      <DetailBackground frame={frame} identity={artworkGameId} scope={scope} mode={backgroundTransition} />
+      {!customBackground && <DetailBackground frame={frame} identity={artworkGameId} scope={scope} mode={backgroundTransition} />}
       <TextTransitionProvider mode={textTransition}>
         <GameDetailContent key={game.id} game={game} enhanceStore={enhanceStore} />
       </TextTransitionProvider>

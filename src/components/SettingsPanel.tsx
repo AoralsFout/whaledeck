@@ -349,6 +349,7 @@ export function SettingsPanel() {
                   )}
                   <span className="hint">{theme.backgroundFile ? "已设置（可随时换）" : "支持 png / jpg / webp"}</span>
                 </div>
+                <p className="hint m-0">设置后所有项目统一使用此背景，清除后恢复各项目封面。</p>
                 <div>
                   <label className="sidebar-control-label" htmlFor="background-dim"><span>背景遮罩强度</span><output htmlFor="background-dim">{Math.round(theme.backgroundDim * 100)}%</output></label>
                   <RangeSlider

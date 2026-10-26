@@ -111,6 +111,19 @@ describe("展示页封面替换", () => {
     expect(store.getState().frame).toBeNull();
   });
 
+  it("改用用户背景时清空封面并丢弃迟到解码，清除背景后可恢复同一项目", async () => {
+    const { store, load } = setup();
+    store.getState().update("a", source, framing); await flush();
+    const pending = deferred(); load.mockReturnValueOnce(pending.promise);
+    store.getState().update("b", { kind: "cover", file: "b.png" }, nextFraming);
+    store.getState().update("b", null, nextFraming);
+    expect(store.getState().frame).toBeNull();
+    pending.resolve("asset:late-cover"); await flush();
+    expect(store.getState().frame).toBeNull();
+    store.getState().update("b", { kind: "cover", file: "b.png" }, nextFraming); await flush();
+    expect(store.getState().frame).toEqual({ scope: "b", url: "asset:a", framing: nextFraming });
+  });
+
   it("卸载丢弃迟到结果，StrictMode 重连能重新加载同一目标", async () => {
     const { store, load } = setup();
     const old = deferred(); load.mockReturnValueOnce(old.promise);
