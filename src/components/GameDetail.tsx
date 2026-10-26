@@ -111,7 +111,9 @@ export const GameDetail = memo(function GameDetail({ game, coverEditor }: { game
 
   return (
     <div className="game-detail relative flex h-full flex-col overflow-hidden">
-      {!customBackground && <DetailBackground frame={frame} identity={artworkGameId} scope={scope} mode={backgroundTransition} />}
+      {customBackground
+        ? <div className="detail-background-shade pointer-events-none absolute inset-0" aria-hidden="true" />
+        : <DetailBackground frame={frame} identity={artworkGameId} scope={scope} mode={backgroundTransition} />}
       <TextTransitionProvider mode={textTransition}>
         <GameDetailContent key={game.id} game={game} enhanceStore={enhanceStore} />
       </TextTransitionProvider>
