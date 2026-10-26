@@ -90,7 +90,7 @@ body {
   background: var(--bg);
   color-scheme: var(--app-color-scheme);
   border-radius: var(--window-radius);
-  /* 裁剪背景与普通浮层；原生 dialog 的顶层遮罩需单独裁剪。 */
+  /* 裁剪背景与普通浮层；顶层 dialog 自身另行使用相同轮廓。 */
   clip-path: inset(0 round var(--window-radius));
   isolation: isolate;
 }
@@ -712,20 +712,19 @@ input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
   max-height: none;
   padding: 64px 24px 24px;
   border: 0;
-  background: transparent;
+  background: rgb(0 0 0 / 55%);
+  backdrop-filter: blur(3px);
+  /* dialog 位于顶层，不受 #root 裁剪；遮罩、内容及阴影须一起裁剪。 */
+  clip-path: inset(0 round var(--window-radius));
   color: var(--text);
   overflow: hidden;
   color-scheme: var(--app-color-scheme);
 }
 .modal[open] { display: flex; align-items: center; justify-content: center; }
-/* 顶层遮罩不受 #root 的裁剪约束，需跟随窗口圆角单独裁剪。 */
-.modal::backdrop {
-  background: rgb(0 0 0 / 55%);
-  backdrop-filter: blur(3px);
-  clip-path: inset(0 round var(--window-radius));
-}
+/* 原生遮罩只保留模态语义，不依赖旧 WebView2 的伪元素变量继承。 */
+.modal::backdrop { background: transparent; }
 /* 设置内容较长，滚动时无需重复合成整窗模糊背景。 */
-.modal:has(.settings-header)::backdrop { backdrop-filter: none; }
+.modal:has(.settings-header) { backdrop-filter: none; }
 .modal-panel {
   --modal-gutter: 28px;
   display: flex;
